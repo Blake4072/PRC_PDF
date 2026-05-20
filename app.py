@@ -57,8 +57,6 @@ from flask import (
 
 from processScreen1DatEntry import process, build_pdf
 
-from ad_lookup import fetch_ad_recipient_emails
-
 from dotenv import load_dotenv
 
 load_dotenv()
