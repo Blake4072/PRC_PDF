@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% with messages = get_flashed_messages(with_categories=True) %}
+  {% if messages %}
+    <div class="flash">
+      {% for category, message in messages %}
+        <div class="{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+  <meta charset="utf-8">
+  <title>PRC Review</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; background:#f6f7fb; }
+    .wrap { max-width: 1100px; margin: 16px auto; padding: 14px; }
+    .card { background:#fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+    .hdr { text-align:center; font-weight:700; font-size: 18px; margin-bottom: 10px; }
+    .disclaimer { font-size: 12px; margin: 12px 0; white-space: pre-wrap; }
+    .hint { font-size: 12px; color: #444; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { border: 1px solid #333; padding: 8px; font-size: 13px; }
+    th { background: #fff2bf; text-align: center; }
+    td.val { background: #eee; text-align: center; }
+    .sec { text-align:center; font-weight:700; margin-top: 14px; }
+    .q { margin-top: 10px; }
+    .qtitle { font-weight:700; }
+    .qbox { border:1px solid #333; padding: 10px; min-height: 60px; background:#fff; white-space: pre-wrap; }
+    .btnrow { display:flex; gap: 12px; margin-top: 18px; }
+    button { padding: 10px 14px; cursor:pointer; border-radius: 8px; border: 1px solid #333; background:#fff; }
+    button.primary { background:#2d6cdf; color:#fff; border-color:#2d6cdf; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+
+      <div class="hdr">
+        Position Review Committee Business Case as of {{ ctx.header_month }} &amp; Pay Period {{ ctx.pay_period }}
+      </div>
+
+      <div class="disclaimer">{{ ctx.disclaimer_text }}</div>
+
+      <div class="hint">
+        Protected (read-only) review page. If you need changes, click <b>Clear</b> and re-enter Screen 1.
+      </div>
+
+      <table>
+        <tr>
+          <th>Date Requested</th>
+          <th>Cost Center</th>
+          <th>Facility</th>
+          <th>Cost Center Name</th>
+          <th>Requisition(s)</th>
+        </tr>
+        <tr>
+          <td class="val">{{ ctx.date_requested }}</td>
+          <td class="val">{{ ctx.cost_center }}</td>
+          <td class="val">{{ ctx.facility }}</td>
+          <td class="val">{{ ctx.cost_center_name }}</td>
+          <td class="val">{{ ctx.requisitions }}</td>
+        </tr>
+      </table>
+
+      <table>
+        <tr>
+          <th>Position Requested</th>
+          <th>Position Title</th>
+          <th>Open FTE's</th>
+          <th>Posted FTE's</th>
+          <th>Total Requested FTE'S</th>
+          <th>emailtoAddress</th>
+        </tr>
+        <tr>
+          <td class="val">{{ ctx.position_requested }}</td>
+          <td class="val">{{ ctx.position_title }}</td>
+          <td class="val">{{ ctx.open_fte }}</td>
+          <td class="val">{{ ctx.posted_fte }}</td>
+          <td class="val">{{ ctx.total_requested_fte }}</td>
+          <td class="val">{{ ctx.email_to }}</td>
+        </tr>
+      </table>
+
+      <div class="sec">Operational Statistics</div>
+      <table>
+        <tr>
+          <th>BUD PP Vol YTD</th>
+          <th>Act PP Vol YTD</th>
+          <th>Current PP Bud Vol</th>
+          <th>Bud PP Paid FTE's</th>
+          <th>Act PP Paid FTE's</th>
+          <th>Index YTD</th>
+        </tr>
+        <tr>
+          <td class="val">{{ ctx.bud_pp_vol_ytd }}</td>
+          <td class="val">{{ ctx.act_pp_vol_ytd }}</td>
+          <td class="val">{{ ctx.curr_pp_bud_vol }}</td>
+          <td class="val">{{ ctx.bud_pp_paid_fte }}</td>
+          <td class="val">{{ ctx.act_pp_paid_fte }}</td>
+          <td class="val">{{ ctx.index_ytd }}</td>
+        </tr>
+      </table>
+
+      <table>
+        <tr>
+          <th>Volume Description</th>
+          <th>Budget Salaries</th>
+          <th>Actual Salaries</th>
+          <th>12 Month Turnover</th>
+        </tr>
+        <tr>
+          <td class="val">{{ ctx.volume_description }}</td>
+          <td class="val">{{ ctx.budget_salaries }}</td>
+          <td class="val">{{ ctx.actual_salaries }}</td>
+          <td class="val">{{ ctx.turnover_12mo }}</td>
+        </tr>
+      </table>
+
+      <div class="sec">Productivity Statistics</div>
+      <table>
+        <tr>
+          <th>Current PP Worked FTE's</th>
+          <th>Current PP Paid FTE's</th>
+          <th>Current PP OT%</th>
+          <th>Current PP Act Vol</th>
+          <th>Current Prod Index</th>
+        </tr>
+        <tr>
+          <td class="val">{{ ctx.curr_pp_worked_fte }}</td>
+          <td class="val">{{ ctx.curr_pp_paid_fte }}</td>
+          <td class="val">{{ ctx.curr_pp_ot_pct }}</td>
+          <td class="val">{{ ctx.curr_pp_act_vol }}</td>
+          <td class="val">{{ ctx.curr_prod_index }}</td>
+        </tr>
+      </table>
+
+      <div class="q">
+        <div class="qtitle">1. If position(s) were not filled, how would the workflow change?</div>
+        <div class="qbox">{{ ctx.q1_workflow_change }}</div>
+      </div>
+
+      <div class="q">
+        <div class="qtitle">2. If this is a replacement request, who left the role, where did they go, why did they leave and what efforts were made to retain them?</div>
+        <div class="qbox">{{ ctx.q2_replacement_detail }}</div>
+      </div>
+
+      <div class="q">
+        <div class="qtitle">3. What current positions may be able to absorb the work? Can technology replace or reduce any of the work functions?</div>
+        <div class="qbox">{{ ctx.q3_absorb_work }}</div>
+      </div>
+
+      <div class="q">
+        <div class="qtitle">4. Is there a different skill set that is needed?</div>
+        <div class="qbox">{{ ctx.q4_skillset }}</div>
+      </div>
+
+      <div class="q">
+        <div class="qtitle">5. Are there other roles within the organization that perform similar functions?</div>
+        <div class="qbox">{{ ctx.q5_similar_roles }}</div>
+      </div>
+
+      <div class="q">
+        <div class="qtitle">6. If a full-time position is being requested, could the work process be modified to be reduced to a part-time position?</div>
+        <div class="qbox">{{ ctx.q6_part_time }}</div>
+      </div>
+
+      <div class="btnrow">
+        <form method="post" action="{{ url_for('genpdf_email') }}">
+          <button type="submit" class="primary">GenPDF &amp; Email</button>
+        </form>
+
+        <form method="post" action="{{ url_for('clear_all') }}">
+          <button type="submit">Clear</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

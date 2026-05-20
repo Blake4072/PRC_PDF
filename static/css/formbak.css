@@ -1,0 +1,128 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; color: #111; background: #ffffff; }
+
+/* Center card */
+.page {
+  width: 100%;
+  padding: 32px 0;
+}
+.card {
+  width: 980px;
+  margin: 0 auto;
+  padding: 24px 28px;
+  background: #fff;
+  border: 1px solid #c7cdd4;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+/* Dark blue header banner */
+.header-banner {
+  background: #003399;      /* dark blue */
+  color: #ffffff;           /* white text */
+  border: 1px solid #003399;
+  border-radius: 12px;
+  padding: 14px 18px;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.header-banner h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.flash { 
+  margin: 8px 0 16px; 
+  padding: 10px 12px; 
+  border: 1px solid #2e7d32; 
+  background: #e8f5e9; 
+  color: #2e7d32; 
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.row-1 { margin-bottom: 14px; }
+
+.field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.field input[type="text"],
+.field input[type="date"],
+.field input[type="number"],
+.field select {
+  width: 100%;
+  border: 1px solid #c7cdd4;
+  border-radius: 12px;
+  background: #f3f5f7;
+  padding: 10px 12px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.q { margin-top: 10px; }
+.q label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.q textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid #c7cdd4;
+  border-radius: 12px;
+  background: #f3f5f7;
+  padding: 10px 12px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* --- BUTTONS --- */
+.actions-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  margin-top: 18px;
+}
+.actions-row form {
+  display: inline-block;
+  margin: 0;
+}
+.actions-row button {
+  border: 1px solid #003399;
+  border-radius: 10px;
+  padding: 10px 24px;
+  font-size: 14px;
+  background: #003399;   /* Dark blue background */
+  color: #ffffff;         /* White text */
+  cursor: pointer;
+  min-width: 100px;
+}
+.actions-row button.secondary {
+  background: #003399;    /* Same as Submit */
+  color: #ffffff;
+  border: 1px solid #003399;
+}
+.actions-row button:hover {
+  filter: brightness(0.95);
+}
+
+/* Notes */
+.notes {
+  margin-top: 18px;
+  font-size: 13px;
+}
+.notes ol { padding-left: 16px; }
+.notes li { margin: 6px 0; }

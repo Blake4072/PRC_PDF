@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRC Data Entry</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form.css') }}" />
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+
+      <header class="header-banner">
+        <h1>PRC Data Entry</h1>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+          <div class="flash">
+            {% for cat, m in messages %}<div class="{{ cat }}">{{ m }}</div>{% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <!-- ORIGINAL FIELD SET & ORDER -->
+      <form method="post" action="{{ url_for('submit') }}" id="data-form" autocomplete="on">
+        <div class="grid">
+          <div class="field">
+            <label for="cost_center">Cost Center #</label>
+            <input type="text" id="cost_center" name="cost_center" value="{{ data.get('cost_center','') }}" />
+          </div>
+          <!--
+          <div class="field">
+            <label for="facility">Facility</label>
+            <select id="facility" name="facility">
+              {% set fac = data.get('facility','') %}
+              <option value="">-- Select Facility --</option>
+              <option value="Blessing Hospital" {{ 'selected' if fac=='Blessing Hospital' else '' }}>Blessing Hospital</option>
+              <option value="BPS" {{ 'selected' if fac=='BPS' else '' }}>BPS</option>
+              <option value="Illini" {{ 'selected' if fac=='Illini' else '' }}>Illini</option>
+              <option value="Denman" {{ 'selected' if fac=='Denman' else '' }}>Denman</option>
+            </select>
+          </div>
+          -->
+          <div class="field">
+            <label for="requisition_no">Requisition #</label>
+            <input type="text" id="requisition_no" name="requisition_no" value="{{ data.get('requisition_no','') }}" />
+          </div>
+
+          <div class="field">
+            <label for="position_title">Position Title</label>
+            <input type="text" id="position_title" name="position_title" value="{{ data.get('position_title','') }}" />
+          </div>
+          <div class="field">
+            <label for="total_requested_ftes">Total Requested FTE's</label>
+            <input type="text" id="total_requested_ftes" name="total_requested_ftes" value="{{ data.get('total_requested_ftes','') }}" />
+          </div>
+          <div class="field">
+            <label for="position_requested">Position Requested</label>
+            <select id="position_requested" name="position_requested">
+              {% set pr = data.get('position_requested','') %}
+              <option value="">-- Select --</option>
+              <option value="Budgeted Replacement" {{ 'selected' if pr=='Budgeted Replacement' else '' }}>Budgeted Replacement</option>
+              <option value="Budgeted New/Vacant" {{ 'selected' if pr=='Budgeted New/Vacant' else '' }}>Budgeted New/Vacant</option>
+              <option value="Out of Budget" {{ 'selected' if pr=='Out of Budget' else '' }}>Out of Budget</option>
+              <option value="Reallocation" {{ 'selected' if pr=='Reallocation' else '' }}>Reallocation</option>
+              <option value="Agency" {{ 'selected' if pr=='Agency' else '' }}>Agency</option>
+              <option value="Over Hire" {{ 'selected' if pr=='Over Hire' else '' }}>Over Hire</option>
+              <option value="Temporary Position" {{ 'selected' if pr=='Temporary Position' else '' }}>Temporary Position</option>
+              <option value="Bonus Request" {{ 'selected' if pr=='Bonus Request' else '' }}>Bonus Request</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="open_fte">Open FTE</label>
+            <input type="text" id="open_fte" name="open_fte" value="{{ data.get('open_fte','') }}" />
+          </div>
+          <div class="field">
+            <label for="posted_fte">Posted FTE</label>
+            <input type="text" id="posted_fte" name="posted_fte" value="{{ data.get('posted_fte','') }}" />
+          </div>
+          <div class="field">
+            <label for="requested_date">Requested Date</label>
+            <input type="date" id="requested_date" name="requested_date" value="{{ data.get('requested_date') or '' }}" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="field span-2 email-narrow">
+            <label for="emails">User Email Address (xxx@blessinghealth.org)</label>
+
+            
+            
+            <select id="email_select">
+              <option value="">-- Select existing email --</option>
+              {% for e in known_emails %}
+                <option value="{{ e }}">{{ e }}</option>
+              {% endfor %}
+            </select>
+
+            <input type="text"
+                  id="emails"
+                  name="emails"
+                  placeholder="xxx@blessinghealth.org"
+                  value="{{ data.get('emails','') }}" />
+
+            <script>
+            document.getElementById("email_select").addEventListener("change", function () {
+              document.getElementById("emails").value = this.value;
+            });
+            </script>
+
+
+          </div>
+          <div class="field span-1"></div>
+        </div>
+
+
+        <div class="q">
+          <label for="q1">1. If position were not filled, how would the workflow change</label>
+          <textarea id="q1" name="q1">{{ data.get('q1','') }}</textarea>
+        </div>
+
+        <div class="q">
+          <label for="q2">2. If this is a replacement request, who left the role, where did they go, why did they leave and what efforts were made to retain them?</label>
+          <textarea id="q2" name="q2">{{ data.get('q2','') }}</textarea>
+        </div>
+
+        <div class="q">
+          <label for="q3">3. What current positions may be able to absorb the work? Can technology replace or reduce any of the work functions?</label>
+          <textarea id="q3" name="q3">{{ data.get('q3','') }}</textarea>
+        </div>
+
+        <div class="q">
+          <label for="q4">4. Is there a different skill set that is needed?</label>
+          <textarea id="q4" name="q4">{{ data.get('q4','') }}</textarea>
+        </div>
+
+        <div class="q">
+          <label for="q5">5. Are there other roles within the organization that perform similar functions?</label>
+          <textarea id="q5" name="q5">{{ data.get('q5','') }}</textarea>
+        </div>
+
+        <div class="q">
+          <label for="q6">6. If a full-time position is being requested, could the work process be modified to be reduced to a part-time position?</label>
+          <textarea id="q6" name="q6">{{ data.get('q6','') }}</textarea>
+        </div>
+
+        <!-- Buttons: side-by-side in one form. Clear uses formaction to hit /clear_all -->
+        <div class="actions-row">
+          <button type="submit">Submit</button>
+          <button type="submit" formaction="{{ url_for('clear_all') }}" class="secondary">Clear</button>
+        </div>
+      </form>
+      <section class="notes">
+        <ol>
+          <li>Fill required details and click Submit to review the protected (read-only) PRC summary page.</li>
+          <li>On the Review page, click “GenPDF &amp; Email” to generate and email the PDF.</li>
+        </ol>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
