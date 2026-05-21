@@ -95,12 +95,12 @@ app.permanent_session_lifetime = timedelta(hours=8)
 # ---------------------------------------------------------------------
 CSV_CC_LOOKUP = os.environ.get(
     "PRC_CC_CSV",
-    r"\\ss01\groups$\decs\Tableau\Productivity\Prod Tracker Salaries.csv",
+    #r"\\ss01\groups$\decs\Tableau\Productivity\Prod Tracker Salaries.csv",
 )
 
 VOLDESC_XLSX = os.environ.get(
     "PRC_VOLDESC_XLSX",
-    r"\\ss01\groups$\decs\Tableau\Productivity\Productivity Stats Volume Descriptions.xlsx",
+    #r"\\ss01\groups$\decs\Tableau\Productivity\Productivity Stats Volume Descriptions.xlsx",
 )
 
 PAYPERIOD_XLSX = os.environ.get(
@@ -470,34 +470,35 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
     Facility is DERIVED from CSV (authoritative).
     """
 
-    if _CACHE.get("cost_centers") is None:
-        raise ValueError("Cost center lookup table not loaded.")
+    
+    cc = _normalize_cost_center(cost_center)
 
-    df = _CACHE["cost_centers"]
+    eng = _mssql_engine()
 
-    # normalize input
-    cc_norm = _normalize_cost_center(cost_center)
+    query = """
+        SELECT TOP 1
+            [Cost_Center] AS cost_center,
+            [Facility_Desc] AS facility_desc,
+            [Cost_Center_Desc] AS cost_center_desc
+        FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]
+        WHERE [Cost_Center] = ?
+    """
 
-    log.warning("LOOKUP DEBUG cc_norm=%s", cc_norm)
+    import pandas as pd
 
-    # match by cost center ONLY
-    df_cc = df[df["_CC_NORM"] == cc_norm]
+    with eng.connect() as con:
+        df = pd.read_sql(query, con, params=(cc,))
 
-    log.warning(
-        "LOOKUP DEBUG matches=%d sample=%s",
-        len(df_cc),
-        df_cc[["_CC_NORM", "Facility Desc"]].head().to_dict(orient="records")
-    )
+    if df.empty:
+        raise ValueError(f"Invalid cost center: {cost_center}")
 
-    if df_cc.empty:
-        raise ValueError(f"Invalid Cost Center: {cost_center}")
-
-    row = df_cc.iloc[0]
+    row = df.iloc[0]
 
     return {
-        "facility_desc": row["Facility Desc"],
-        "cost_center_desc": row["Cost Center Desc"],
+        "facility_desc": str(row["facility_desc"]),
+        "cost_center_desc": str(row["cost_center_desc"]),
     }
+
 
 
 
@@ -633,8 +634,20 @@ def submit():
 
     # 2) Build review context dict (NO PDF here)
     import processScreen1DatEntry as processor
-    with _CACHE_LOCK:
-        cost_centers_df = _CACHE.get("cost_centers")
+    
+    eng = _mssql_engine()
+
+    query = """
+        SELECT
+            [Cost_Center] AS [Cost Center],
+            [Facility_Desc] AS [Facility Desc],
+            [Cost_Center_Desc] AS [Cost Center Desc]
+        FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]
+    """
+
+    with eng.connect() as con:
+        cost_centers_df = pd.read_sql(query, con)
+
 
     # processor.process returns ctx_dict (not pdf path)
     ctx_dict = processor.process(form_fields, cost_centers_df=cost_centers_df, prod_df=_CACHE["productivity_data"],)

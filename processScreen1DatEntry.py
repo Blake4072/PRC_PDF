@@ -159,6 +159,8 @@ def extract_facility_name(
 
     If missing or not found => ValueError.
     """
+    cost_centers_df["_CC_NORM"] = cost_centers_df["Cost Center"].apply(_normalize_cost_center)
+
     _ = facility_from_screen  # facility is derived from lookup now
 
     if cost_centers_df is None or getattr(cost_centers_df, "empty", True):
@@ -201,7 +203,7 @@ def gen_operational_stats() -> Dict[str, str]:
 
 def gen_operational_stats(cost_center: str, header_month: str, prod_df: pd.DataFrame) -> Dict[str, str]:
     
-    if "Month Number Desc" not in prod_df.columns:
+    if prod_df is None or "Month Number Desc" not in prod_df.columns:
         return{
                 "bud_pp_vol_ytd": "0",
                 "act_pp_vol_ytd": "0",
