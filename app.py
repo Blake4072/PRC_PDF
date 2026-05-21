@@ -91,7 +91,7 @@ import sentry_sdk
 from flask import Flask
 
 sentry_sdk.init(
-    dsn="SENTRY_DSN",
+    dsn=os.environ.get("SENTRY_DSN"),
     send_default_pii=False,
 )
 
