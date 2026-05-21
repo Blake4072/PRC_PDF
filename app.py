@@ -597,7 +597,7 @@ def submit():
     
     ensure_user_session()
 
-    preload_all()
+    #preload_all()
 
     form_fields = request.form.to_dict(flat=True)
 
