@@ -86,6 +86,15 @@ def step(name, fn):
 # ---------------------------------------------------------------------
 # Flask setup
 # ---------------------------------------------------------------------
+
+import sentry_sdk
+from flask import Flask
+
+sentry_sdk.init(
+    dsn="SENTRY_DSN",
+    send_default_pii=False,
+)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("PRC_FLASK_SECRET_KEY", "change-this-secret-key")
 app.permanent_session_lifetime = timedelta(hours=8)
