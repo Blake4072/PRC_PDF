@@ -65,12 +65,19 @@ load_dotenv()
 # ---------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+LOG_FILE = "/tmp/app_runtime.log"   # always writable in containers
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
+)
+
 log = logging.getLogger("prcapp")
-
-import time
-
-startup_log = logging.getLogger("startup")
 
 def step(name, fn):
     startup_log.info("START %s", name)
@@ -633,7 +640,7 @@ def submit():
     
     ensure_user_session()
 
-    #preload_all()
+    preload_all()
 
     form_fields = request.form.to_dict(flat=True)
 
@@ -828,6 +835,16 @@ def clear_all():
     session["pdf_path"] = None
     session.modified = True
     return redirect(url_for("index"))
+
+
+@app.get("/debug/logs")
+def get_logs():
+    try:
+        with open("/tmp/app_runtime.log", "r") as f:
+            return "<pre>" + f.read()[-20000:] + "</pre>"
+    except Exception as e:
+        return f"failed to read logs: {e}", 500
+
 
 ################################## edit by Blake Bozarth 4/29/26 lines: ######################################
 
