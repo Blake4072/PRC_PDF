@@ -88,12 +88,32 @@ def step(name, fn):
 # ---------------------------------------------------------------------
 
 import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
 from flask import Flask
+
+
+import urllib3
+urllib3.disable_warnings()
+
+from sentry_sdk.transport import HttpTransport
+
+def _get_pool_options(self, *args, **kwargs):
+    
+    return {
+            "num_pools": 2,
+            "cert_reqs": "CERT_NONE",
+        }
+
+
+HttpTransport._get_pool_options = _get_pool_options
+
 
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN"),
+    integrations=[FlaskIntegration()],   
     send_default_pii=False,
 )
+print("SENTRY_DSN =", os.environ.get("SENTRY_DSN"))
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("PRC_FLASK_SECRET_KEY", "change-this-secret-key")
@@ -596,6 +616,12 @@ def index():
         recipient_emails = _CACHE["ad_recipient_emails"]
 
     return render_template("form.html", data=data, known_emails=emails)
+
+
+@app.get("/sentry-test")
+def sentry_test():
+    1 / 0
+
 
 @app.post("/submit")
 def submit():
