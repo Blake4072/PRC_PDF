@@ -698,7 +698,7 @@ def submit():
         )
     )
 
-    log.error("CTX_DICT KEYS: %s", ctx_dict.keys())
+    #log.error("CTX_DICT KEYS: %s", ctx_dict.keys())
     
     #ctx_dict["recipient_email"] = recipient_email
 
