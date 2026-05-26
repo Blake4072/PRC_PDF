@@ -65,12 +65,8 @@ load_dotenv()
 # ---------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 log = logging.getLogger("prcapp")
-
-import time
-
-startup_log = logging.getLogger("startup")
 
 def step(name, fn):
     startup_log.info("START %s", name)
