@@ -124,23 +124,7 @@ app.permanent_session_lifetime = timedelta(hours=8)
 # ---------------------------------------------------------------------
 # Environment / Config (can be overridden via env vars)
 # ---------------------------------------------------------------------
-'''
-CSV_CC_LOOKUP = os.environ.get(
-    "PRC_CC_CSV",
-    #r"\\ss01\groups$\decs\Tableau\Productivity\Prod Tracker Salaries.csv",
-)
 
-VOLDESC_XLSX = os.environ.get(
-    "PRC_VOLDESC_XLSX",
-    #r"\\ss01\groups$\decs\Tableau\Productivity\Productivity Stats Volume Descriptions.xlsx",
-)
-
-PAYPERIOD_XLSX = os.environ.get(
-    "PRC_PAYPERIOD_XLSX",
-    r"\\SS01\groups$\decs\Tableau\Productivity\PAYPERIODTABLE.xlsx",
-)
-PAYPERIOD_SHEET = os.environ.get("PRC_PAYPERIOD_SHEET", "PAYPERIODTABLE")
-'''
 FABRIC_SERVER = os.environ.get(
     "PRC_FABRIC_SERVER",
     "lmxximtgum2ehbbgzpmsepntha-doih7hxdnwru5n7buhf5sjknle.datawarehouse.fabric.microsoft.com",
@@ -173,26 +157,7 @@ PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM", "noreply@blessinghospital.com"
 # ---------------------------------------------------------------------
 # In-memory cache shared across users / requests
 # ---------------------------------------------------------------------
-'''
-_CACHE_LOCK = threading.RLock()
-_CACHE = {
-    "cost_centers": None,         # from CSV_CC_LOOKUP
-    "termination_detail": None,   # from FABRIC_TABLE
-    "productivity_data": None,    # from MSSQL_TABLE
-    "payperiod_table": None,      # from PAYPERIOD_XLSX
-    "vol_desc_table": None,       # from VOLDESC_XLSX
-    "ad_recipient_emails": None,  # from Active Directory            #Blake Bozarth edit 5/4/26
-    "loaded_at": None,            # timestamp of last successful preload
-}
 
-def _validate_required_env_or_raise():
-    missing = [k for k in REQUIRED_ENV_VARS if not os.environ.get(k)]
-    if missing:
-        raise RuntimeError(
-            "Missing required environment variables: "
-            + ", ".join(missing)
-        )
-'''
 # ---------------------------------------------------------------------
 # Helpers for normalization and column picking
 # ---------------------------------------------------------------------
@@ -203,83 +168,10 @@ def _normalize_cost_center(x: str) -> str:
     if s.isdigit():
         s = s.lstrip("0") or "0"
     return s.upper()
-'''
-def _normalize_text(x: str) -> str:
-    return str(x).strip().upper()
 
-def _pick_column(df: pd.DataFrame, candidates) -> str:
-    colmap = {c.upper().replace(" ", "").replace("_", ""): c for c in df.columns}
-    for c in candidates:
-        k = c.upper().replace(" ", "").replace("_", "")
-        if k in colmap:
-            return colmap[k]
-    raise ValueError(
-        f"Missing required column. Expected one of {candidates}. Present: {list(df.columns)}"
-    )
-'''
 # ---------------------------------------------------------------------
 # Dataset loader functions
 # ---------------------------------------------------------------------
-'''
-def load_cost_centers_csv() -> pd.DataFrame:
-    if not os.path.exists(CSV_CC_LOOKUP):
-        raise FileNotFoundError(f"Cost Center CSV not found: {CSV_CC_LOOKUP}")
-
-    df = pd.read_csv(
-        CSV_CC_LOOKUP,
-        dtype=str,
-        keep_default_na=False,
-       encoding="utf-8-sig",
-    ).fillna("")
-
-    cc   = _pick_column(df, ["Cost Center", "CostCenter", "Cost_Center", "CC"])
-    fac  = _pick_column(df, ["Facility Desc", "Facility", "FacilityDesc"])
-    desc = _pick_column(df, ["Cost Center Desc", "CostCenterDesc", "Description"])
-
-    df["_CC_NORM"]  = df[cc].map(_normalize_cost_center)
-    df["_FAC_NORM"] = df[fac].map(_normalize_text)
-    df = df.rename(columns={cc: "Cost Center", fac: "Facility Desc", desc: "Cost Center Desc"})
-
-    log.warning(
-        "KNOWN COST CENTERS SAMPLE: %s",
-        df["_CC_NORM"].drop_duplicates().head(20).tolist()
-    )
-
-    return df[["Cost Center", "Facility Desc", "Cost Center Desc", "_CC_NORM", "_FAC_NORM"]]
-
-def load_payperiod_excel() -> pd.DataFrame:
-    if not os.path.exists(PAYPERIOD_XLSX):
-        raise FileNotFoundError(f"PAYPERIOD Excel not found: {PAYPERIOD_XLSX}")
-    return pd.read_excel(PAYPERIOD_XLSX, sheet_name=PAYPERIOD_SHEET, dtype=str).fillna("")
-
-def load_vol_desc_excel() -> pd.DataFrame:
-    if not os.path.exists(VOLDESC_XLSX):
-        raise FileNotFoundError(f"Volume Descriptions Excel not found: {VOLDESC_XLSX}")
-    return pd.read_excel(VOLDESC_XLSX, dtype=str).fillna("")
-
-def _fabric_engine():
-################################## edit by Blake Bozarth 4/28/26 lines: 179 - 190 (migrate to ODBC 18 from ODBC 17)######################################
-    driver = os.environ.get("PRC_FABRIC_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
-
-    server = FABRIC_SERVER
-    database = FABRIC_DATABASE
-
-    url = (
-        f"mssql+pyodbc://@{server}:1433/{database}"
-        f"?driver={driver.replace(' ', '+')}"
-        f"&authentication=ActiveDirectoryInteractive"
-        f"&Encrypt=yes"
-        f"&TrustServerCertificate=yes"
-    )
-    return create_engine(url, fast_executemany=True)
-
-def load_fabric_table() -> pd.DataFrame:
-    eng = _fabric_engine()
-    with eng.connect() as con:
-        return pd.read_sql(f"SELECT * FROM {FABRIC_TABLE};", con)
-'''
-#def load_fabric_table() -> pd.DataFrame:
-    #return pd.DataFrame()
 
 # trusted SQL connection WILL NOT WORK ON SERVER
 # needs a user + pass auth layer that executes within the docker image where the source code is "hosted"
@@ -312,138 +204,7 @@ def load_mssql_table() -> pd.DataFrame:
 # ---------------------------------------------------------------------
 # Master preload/refresh functions
 # ---------------------------------------------------------------------
-'''
-def preload_all():
-    cc_df   = load_cost_centers_csv()
-    ppp_df  = load_payperiod_excel()
-    #ad_emails = fetch_ad_recipient_emails()
-    fab_df = load_fabric_table()
-    vol_df  = load_vol_desc_excel()
 
-########################################################################
-    engine = _mssql_engine()
-    
-    import time
-
-    with engine.connect() as con:
-        log.info("Attempting MSSQL query against table: %s", MSSQL_TABLE)
-
-        t0 = time.time()
-
-        prod_df = pd.read_sql(
-            f"SELECT TOP (100) * FROM [dbo].[Productivity Data]",
-            con
-        )
-
-        dt = time.time() - t0
-
-        log.info("MSSQL query succeeded; rows=%d time=%.3fs", len(prod_df), dt)
-        log.info("Productivity DB columns: %s", prod_df.columns.tolist())
-
-
-########################################################################
-
-    with _CACHE_LOCK:
-        _CACHE["cost_centers"]       = cc_df
-        _CACHE["payperiod_table"]    = ppp_df
-        #_CACHE["ad_recipient_emails"] = ad_emails
-        _CACHE["termination_detail"] = fab_df
-        _CACHE["productivity_data"]  = prod_df
-        _CACHE["vol_desc_table"]     = vol_df
-        _CACHE["loaded_at"]          = datetime.now(tz=LOCAL_TZ)
-
-    log.info(
-        "Datasets preloaded. Rows => cost_centers=%s, payperiod=%s, termination_detail=%s, productivity_data=%s, vol_desc=%s",
-        len(cc_df), len(ppp_df), len(fab_df), len(prod_df), len(vol_df)
-    )
-
-
-def preload_all():
-    cc_df = step("cost_centers_csv", load_cost_centers_csv)
-    ppp_df = step("payperiod_excel", load_payperiod_excel)
-    ad_emails = step("ad_lookup", fetch_ad_recipient_emails)
-    fab_df = step("fabric_sql", load_fabric_table)
-    vol_df = step("vol_desc_excel", load_vol_desc_excel)
-
-    prod_df = step(
-        "productivity_csv",
-        lambda: pd.read_csv(CSV_CC_LOOKUP, dtype=str).fillna("")
-    )
-
-    prod_df["GL Month Value"] = (
-        prod_df["GL Month Value"]
-        .str.replace(",", "", regex=False)
-        .astype(float)
-    )
-
-    with _CACHE_LOCK:
-        _CACHE["cost_centers"] = cc_df
-        _CACHE["payperiod_table"] = ppp_df
-        _CACHE["ad_recipient_emails"] = ad_emails
-        _CACHE["termination_detail"] = fab_df
-        _CACHE["vol_desc_table"] = vol_df
-        _CACHE["productivity_data"] = prod_df
-        _CACHE["loaded_at"] = datetime.now(tz=LOCAL_TZ)
-
-def get_cache_status():
-    with _CACHE_LOCK:
-        cc   = _CACHE["cost_centers"]
-        ppp  = _CACHE["payperiod_table"]
-        fab  = _CACHE["termination_detail"]
-        prod = _CACHE["productivity_data"]
-        vol  = _CACHE["vol_desc_table"]
-        ts   = _CACHE["loaded_at"]
-
-################################## edit by Blake Bozarth 4/27/26 lines: 247, 254, 255######################################
-
-    def _info(df, allow_empty = False):
-        return {"loaded": df is not None and (allow_empty or not getattr(df, "empty", True)),
-                "rows": (len(df) if df is not None else 0)}
-
-    return {
-        "loaded_at": (ts.isoformat() if ts else None),
-        "cost_centers": _info(cc),
-        "payperiod_table": _info(ppp),
-        "termination_detail": _info(fab, allow_empty=True),
-        "productivity_data": _info(prod, allow_empty=True),
-        "vol_desc_table": _info(vol),
-    }
-
-def _validate_all_datasets_or_raise():
-    status = get_cache_status()
-    required = ["cost_centers", "payperiod_table", "termination_detail", "productivity_data", "vol_desc_table"]
-    missing = [k for k in required if not status[k]["loaded"]]
-    if missing:
-        details = {k: status[k] for k in required}
-        raise RuntimeError(f"Startup failed: required datasets not loaded: {missing}. Status={details}")
-
-def _seconds_until_next_refresh() -> float:
-    hh, mm = map(int, DAILY_REFRESH_TIME.split(":"))
-    now = datetime.now(tz=LOCAL_TZ)
-    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    if target <= now:
-        target = (target + timedelta(days=1)).replace(hour=hh, minute=mm, second=0, microsecond=0)
-    return (target - now).total_seconds()
-
-def start_daily_refresh_thread():
-    def _worker():
-        while True:
-            wait_s = _seconds_until_next_refresh()
-            log.info("Daily refresh scheduled; sleeping %.1f seconds until %s.", wait_s, DAILY_REFRESH_TIME)
-            time.sleep(max(wait_s, 1.0))
-            try:
-                log.info("Starting scheduled daily refresh.")
-                preload_all()
-                _validate_all_datasets_or_raise()
-                log.info("Scheduled daily refresh complete.")
-            except Exception as e:
-                log.exception("Scheduled daily refresh failed: %s", e)
-            time.sleep(60)
-
-    t = threading.Thread(target=_worker, daemon=True, name="DailyRefresh")
-    t.start()
-    log.info("Daily refresh thread started (scheduled for %s America/Chicago).", DAILY_REFRESH_TIME)
-'''
 # ---------------------------------------------------------------------
 # Session helper
 # ---------------------------------------------------------------------
@@ -467,36 +228,7 @@ def ensure_user_session():
 # ---------------------------------------------------------------------
 # Cost Center validation FIRST (uses preloaded cache)
 # ---------------------------------------------------------------------
-'''
-def lookup_cost_center_or_raise(cost_center: str) -> dict:
-    """
-    Uses preloaded _CACHE["cost_centers"] (from Prod Tracker Salaries CSV).
-    Returns:
-      {"facility_desc": "...", "cost_center_desc": "..."}
-    Raises:
-      ValueError if lookup table missing or cost center invalid.
-    """
-    cc_norm = _normalize_cost_center(cost_center)
 
-    with _CACHE_LOCK:
-        df = _CACHE.get("cost_centers")
-
-    if df is None or getattr(df, "empty", True):
-        raise ValueError("Cost center lookup table is not loaded. (Startup preload issue)")
-
-    if "_CC_NORM" not in df.columns:
-        raise ValueError("Cost center lookup table missing _CC_NORM column. (Unexpected)")
-
-    hit = df.loc[df["_CC_NORM"] == cc_norm]
-    if hit.empty:
-        raise ValueError(f"Invalid cost center: {cost_center}")
-
-    row = hit.iloc[0]
-    return {
-        "facility_desc": str(row.get("Facility Desc", "")).strip(),
-        "cost_center_desc": str(row.get("Cost Center Desc", "")).strip(),
-    }
-'''
 #******************************************************edit Blake Bozarth 4/29 (facility is now derived from the authoritative cost‑center lookup instead of user input; cost center is the unique key and facility is a dependent attribute.)
 def lookup_cost_center_or_raise(cost_center: str) -> dict:
     """
@@ -543,33 +275,6 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
 # ---------------------------------------------------------------------
 # Preload orchestration (synchronous startup)
 # ---------------------------------------------------------------------
-'''
-_preloaded_once = False
-_preload_lock = threading.Lock()
-
-def _init_preload_once():
-    global _preloaded_once
-    if _preloaded_once:
-        return
-
-    with _preload_lock:
-        if _preloaded_once:
-            return
-
-        preload_all()
-        _validate_all_datasets_or_raise()
-        log.info("Cache preload complete at startup: %s", get_cache_status())
-
-        start_daily_refresh_thread()
-        _preloaded_once = True
-
-def startup():
-    """Public startup entrypoint used by run_waitress.py."""
-    #_validate_required_env_or_raise()
-    _init_preload_once()
-    #print(_CACHE["productivity_data"].columns.tolist())
-    os.makedirs(OUTPUT_PDF_DIR, exist_ok=True)
-'''
 
 def startup():
     startup_log.info("STARTUP: entered")
