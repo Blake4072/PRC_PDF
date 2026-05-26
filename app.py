@@ -178,7 +178,7 @@ def _normalize_cost_center(x: str) -> str:
 # trusted SQL connection WILL NOT WORK ON SERVER
 # needs a user + pass auth layer that executes within the docker image where the source code is "hosted"
 def _mssql_engine():
-    driver = os.environ.get("PRC_MSSQL_ODBC_DRIVER", "SQL Server")
+    driver = os.environ.get("PRC_MSSQL_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
     server = os.environ.get("PRC_MSSQL_SERVER", "QYVMSTNDPDSQL02")
     database = os.environ.get("PRC_MSSQL_DB", "DecisionSupport")
     user = os.environ.get("PRC_MSSQL_USER")
