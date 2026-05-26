@@ -819,16 +819,6 @@ def clear_all():
     session.modified = True
     return redirect(url_for("index"))
 
-
-@app.get("/debug/logs")
-def get_logs():
-    try:
-        with open("/tmp/app_runtime.log", "r") as f:
-            return "<pre>" + f.read()[-20000:] + "</pre>"
-    except Exception as e:
-        return f"failed to read logs: {e}", 500
-
-
 ################################## edit by Blake Bozarth 4/29/26 lines: ######################################
 
 #------------------------------------------
