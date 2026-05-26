@@ -613,12 +613,6 @@ def index():
 
     return render_template("form.html", data=data, known_emails=emails)
 
-
-@app.get("/sentry-test")
-def sentry_test():
-    1 / 0
-
-
 @app.post("/submit")
 def submit():
     """
