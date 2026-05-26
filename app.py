@@ -40,9 +40,10 @@ import threading
 import time
 from datetime import timedelta, date, datetime
 from zoneinfo import ZoneInfo
+import json
 
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from flask import (
     Flask,
@@ -123,6 +124,7 @@ app.permanent_session_lifetime = timedelta(hours=8)
 # ---------------------------------------------------------------------
 # Environment / Config (can be overridden via env vars)
 # ---------------------------------------------------------------------
+'''
 CSV_CC_LOOKUP = os.environ.get(
     "PRC_CC_CSV",
     #r"\\ss01\groups$\decs\Tableau\Productivity\Prod Tracker Salaries.csv",
@@ -138,11 +140,12 @@ PAYPERIOD_XLSX = os.environ.get(
     r"\\SS01\groups$\decs\Tableau\Productivity\PAYPERIODTABLE.xlsx",
 )
 PAYPERIOD_SHEET = os.environ.get("PRC_PAYPERIOD_SHEET", "PAYPERIODTABLE")
-
+'''
 FABRIC_SERVER = os.environ.get(
     "PRC_FABRIC_SERVER",
     "lmxximtgum2ehbbgzpmsepntha-doih7hxdnwru5n7buhf5sjknle.datawarehouse.fabric.microsoft.com",
 )
+
 FABRIC_DATABASE = os.environ.get("PRC_FABRIC_DB", "SAM")
 FABRIC_TABLE = os.environ.get("PRC_FABRIC_TABLE", "HR.Termination_DetailBASE")
 
@@ -170,6 +173,7 @@ PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM", "noreply@blessinghospital.com"
 # ---------------------------------------------------------------------
 # In-memory cache shared across users / requests
 # ---------------------------------------------------------------------
+'''
 _CACHE_LOCK = threading.RLock()
 _CACHE = {
     "cost_centers": None,         # from CSV_CC_LOOKUP
@@ -180,7 +184,7 @@ _CACHE = {
     "ad_recipient_emails": None,  # from Active Directory            #Blake Bozarth edit 5/4/26
     "loaded_at": None,            # timestamp of last successful preload
 }
-'''
+
 def _validate_required_env_or_raise():
     missing = [k for k in REQUIRED_ENV_VARS if not os.environ.get(k)]
     if missing:
@@ -199,7 +203,7 @@ def _normalize_cost_center(x: str) -> str:
     if s.isdigit():
         s = s.lstrip("0") or "0"
     return s.upper()
-
+'''
 def _normalize_text(x: str) -> str:
     return str(x).strip().upper()
 
@@ -212,10 +216,11 @@ def _pick_column(df: pd.DataFrame, candidates) -> str:
     raise ValueError(
         f"Missing required column. Expected one of {candidates}. Present: {list(df.columns)}"
     )
-
+'''
 # ---------------------------------------------------------------------
 # Dataset loader functions
 # ---------------------------------------------------------------------
+'''
 def load_cost_centers_csv() -> pd.DataFrame:
     if not os.path.exists(CSV_CC_LOOKUP):
         raise FileNotFoundError(f"Cost Center CSV not found: {CSV_CC_LOOKUP}")
@@ -267,14 +272,14 @@ def _fabric_engine():
         f"&TrustServerCertificate=yes"
     )
     return create_engine(url, fast_executemany=True)
-'''
+
 def load_fabric_table() -> pd.DataFrame:
     eng = _fabric_engine()
     with eng.connect() as con:
         return pd.read_sql(f"SELECT * FROM {FABRIC_TABLE};", con)
 '''
-def load_fabric_table() -> pd.DataFrame:
-    return pd.DataFrame()
+#def load_fabric_table() -> pd.DataFrame:
+    #return pd.DataFrame()
 
 # trusted SQL connection WILL NOT WORK ON SERVER
 # needs a user + pass auth layer that executes within the docker image where the source code is "hosted"
@@ -295,7 +300,7 @@ def _mssql_engine():
          )
 
 
-    return create_engine(url, fast_executemany=True)
+    return create_engine(url, fast_executemany=True, pool_pre_ping=True, pool_size=5, max_overflow=10, future=True,)
 
 
 
@@ -307,7 +312,7 @@ def load_mssql_table() -> pd.DataFrame:
 # ---------------------------------------------------------------------
 # Master preload/refresh functions
 # ---------------------------------------------------------------------
-
+'''
 def preload_all():
     cc_df   = load_cost_centers_csv()
     ppp_df  = load_payperiod_excel()
@@ -352,7 +357,7 @@ def preload_all():
         len(cc_df), len(ppp_df), len(fab_df), len(prod_df), len(vol_df)
     )
 
-'''
+
 def preload_all():
     cc_df = step("cost_centers_csv", load_cost_centers_csv)
     ppp_df = step("payperiod_excel", load_payperiod_excel)
@@ -379,7 +384,7 @@ def preload_all():
         _CACHE["vol_desc_table"] = vol_df
         _CACHE["productivity_data"] = prod_df
         _CACHE["loaded_at"] = datetime.now(tz=LOCAL_TZ)
-'''
+
 def get_cache_status():
     with _CACHE_LOCK:
         cc   = _CACHE["cost_centers"]
@@ -438,7 +443,7 @@ def start_daily_refresh_thread():
     t = threading.Thread(target=_worker, daemon=True, name="DailyRefresh")
     t.start()
     log.info("Daily refresh thread started (scheduled for %s America/Chicago).", DAILY_REFRESH_TIME)
-
+'''
 # ---------------------------------------------------------------------
 # Session helper
 # ---------------------------------------------------------------------
@@ -538,6 +543,7 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
 # ---------------------------------------------------------------------
 # Preload orchestration (synchronous startup)
 # ---------------------------------------------------------------------
+'''
 _preloaded_once = False
 _preload_lock = threading.Lock()
 
@@ -556,7 +562,7 @@ def _init_preload_once():
 
         start_daily_refresh_thread()
         _preloaded_once = True
-'''
+
 def startup():
     """Public startup entrypoint used by run_waitress.py."""
     #_validate_required_env_or_raise()
@@ -612,105 +618,113 @@ def index():
     if not data.get("requested_date"):
         data["requested_date"] = date.today().isoformat()
         session["form_data"] = data
-    
-    with _CACHE_LOCK:
-        recipient_emails = _CACHE["ad_recipient_emails"]
 
     return render_template("form.html", data=data, known_emails=emails)
 
 @app.post("/submit")
 def submit():
-    """
-    CRITICAL: validate cost center FIRST.
-    If invalid => back to / with error message.
-    If valid => build review ctx (NO PDF) and redirect to /review.
-    """
-    
     ensure_user_session()
 
-    preload_all()
+    #preload_all()
 
     form_fields = request.form.to_dict(flat=True)
-
-    
-    ######
-    recipient_email = form_fields.get("recipient_email")
-    '''
-    if not recipient_email:
-        flash("Recipient is required.", "error")
-        return redirect(url_for("index"))
-    '''
-
-    # Save entries so user doesn't lose what they typed
     session["form_data"] = form_fields
 
-    #**********************************BB test ***********************
-
-    #raw_cc = form_fields.get("cost_center", "")
-    #norm_cc = _normalize_cost_center(raw_cc)
-    #log.warning("COST CENTER DEBUG raw='%s' normalized='%s'", raw_cc, norm_cc)
-
-    #*****************************************************************
-    # 1) Validate Cost Center FIRST (fast fail)
     try:
         info = lookup_cost_center_or_raise(form_fields.get("cost_center", ""))
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("index"))
 
-    # Optionally override facility selection with Facility Desc from lookup
-    # This ensures consistency even if user picked a different facility in dropdown.
     form_fields["facility"] = info["facility_desc"]
 
-    # 2) Build review context dict (NO PDF here)
-    import processScreen1DatEntry as processor
-    
+    session_id = session["user_id"]
     eng = _mssql_engine()
 
-    query = """
-        SELECT
-            [Cost_Center] AS [Cost Center],
-            [Facility_Desc] AS [Facility Desc],
-            [Cost_Center_Desc] AS [Cost Center Desc]
-        FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]
-    """
-
-    with eng.connect() as con:
-        cost_centers_df = pd.read_sql(query, con)
-
-
-    # processor.process returns ctx_dict (not pdf path)
-    ctx_dict = processor.process(form_fields, cost_centers_df=cost_centers_df, prod_df=_CACHE["productivity_data"],)
-
-    prod_df = _CACHE["productivity_data"]
-
-    from processScreen1DatEntry import gen_operational_stats
-    ctx_dict.update(
-        gen_operational_stats(
-            cost_center=ctx_dict["cost_center"],
-            header_month=ctx_dict["header_month"],
-            prod_df=prod_df,
-        )
-    )
-
-    #log.error("CTX_DICT KEYS: %s", ctx_dict.keys())
     
-    #ctx_dict["recipient_email"] = recipient_email
+    payload = form_fields.copy()
 
-    session["prc_ctx"] = ctx_dict
-    session["pdf_path"] = None
-    session.modified = True
+    payload["facility"] = info["facility_desc"]
+    payload["facility_desc"] = info["facility_desc"]
+    payload["cost_center_desc"] = info["cost_center_desc"]
+
+
+    payload_json = json.dumps(payload)
+
+    with eng.begin() as con:
+        log.warning("DB WRITE: deleting existing session row for %s", session_id)
+        con.execute(
+            text("DELETE FROM prc_sessions WHERE session_id = :sid"),
+            {"sid": session_id},
+        )
+
+        log.warning("DB WRITE: inserting new session row for %s", session_id)
+        con.execute(
+            text("""
+                INSERT INTO prc_sessions (session_id, payload)
+                VALUES (:sid, :payload)
+            """),
+            {"sid": session_id, "payload": payload_json},
+        )
 
     return redirect(url_for("review"))
 
 @app.get("/review")
 def review():
     ensure_user_session()
-    ctx = session.get("prc_ctx")
-    if not ctx:
+
+    session_id = session["user_id"]
+    eng = _mssql_engine()
+
+    with eng.connect() as con:
+        log.warning("DB READ: fetching session row for %s", session_id)
+
+        row = con.execute(
+            text("SELECT payload FROM prc_sessions WHERE session_id = :sid"),
+            {"sid": session_id},
+        ).fetchone()
+
+    if not row:
         flash("No review data found. Please complete the form.", "error")
         return redirect(url_for("index"))
-    return render_template("review.html", ctx=ctx)
+
+    payload = json.loads(row[0])
+
+    import processScreen1DatEntry as processor
+    from processScreen1DatEntry import gen_operational_stats
+
+    # authoritative lookup table
+    
+    query = """
+        SELECT
+            [Cost_Center] AS [Cost Center],
+            [Facility_Desc] AS [Facility Desc],
+            [Cost_Center_Desc] AS [Cost Center Desc],
+            UPPER(LTRIM(RTRIM(REPLACE([Cost_Center], '.0', '')))) AS _CC_NORM
+        FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]
+    """
+
+
+    with eng.connect() as con:
+        cost_centers_df = pd.read_sql(query, con)
+        prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+
+
+    ctx_dict = processor.process(
+        payload,
+        cost_centers_df=cost_centers_df,
+        prod_df=prod_df
+    )
+
+    ctx_dict.update(
+        gen_operational_stats(
+            cost_center=ctx_dict["cost_center"],
+            header_month=ctx_dict["header_month"],
+            prod_df=prod_df
+        )
+    )
+
+    return render_template("review.html", ctx=ctx_dict)
 
 
 # edit Blake Bozarth 5/4/26 pulls the data object --> builds pdf from it --> attempts email
@@ -726,41 +740,82 @@ def genpdf_email():
     ensure_user_session()
     log.error("GENPDF: after ensure_user_session")
 
-    # ---- LOAD CONTEXT -------------------------------------------------
+    session_id = session["user_id"]
+    eng = _mssql_engine()
 
+    # ---- LOAD FROM DB -------------------------------------------------
+    try:
+        with eng.connect() as con:
+            log.error("GENPDF: DB READ start for session_id=%s", session_id)
 
-    ctx_dict = session.get("prc_ctx")
-    log.error("GENPDF: ctx_dict loaded = %s", "YES" if ctx_dict else "NO")
+            row = con.execute(
+                text("SELECT payload FROM prc_sessions WHERE session_id = :sid"),
+                {"sid": session_id},
+            ).fetchone()
 
-    if not ctx_dict:
-        log.error("GENPDF: EXIT early - ctx_dict missing")
-        flash("Session expired. Please submit the form again.", "error")
+        if not row:
+            log.error("GENPDF: EXIT early - no DB row")
+            flash("Session expired. Please submit the form again.", "error")
+            return redirect(url_for("index"))
+
+        payload = json.loads(row[0])
+        log.error("GENPDF: payload loaded from DB")
+
+    except Exception as e:
+        log.exception("GENPDF: DB READ FAILED")
+        flash("Failed to retrieve session data.", "error")
         return redirect(url_for("index"))
 
-    # ---- PDF GENERATION (MUST RUN UNCONDITIONALLY) --------------------
+    # ---- REBUILD CONTEXT ----------------------------------------------
     try:
-        log.error("GENPDF: importing PRCContext")
-        from processScreen1DatEntry import PRCContext
+        import processScreen1DatEntry as processor
+        from processScreen1DatEntry import gen_operational_stats, PRCContext
 
-        
-        pdf_ctx_dict = {
-            k: v
-            for k, v in ctx_dict.items()
-            if k in PRCContext.__annotations__
-        }
+        query = """
+            SELECT
+                [Cost_Center] AS [Cost Center],
+                [Facility_Desc] AS [Facility Desc],
+                [Cost_Center_Desc] AS [Cost Center Desc],
+                UPPER(LTRIM(RTRIM(REPLACE([Cost_Center], '.0', '')))) AS _CC_NORM
+            FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]
+        """
 
+
+        with eng.connect() as con:
+            cost_centers_df = pd.read_sql(query, con)
+            prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+
+        ctx_dict = processor.process(
+            payload,
+            cost_centers_df=cost_centers_df,
+            prod_df=prod_df
+        )
+
+        ctx_dict.update(
+            gen_operational_stats(
+                cost_center=ctx_dict["cost_center"],
+                header_month=ctx_dict["header_month"],
+                prod_df=prod_df
+            )
+        )
+
+        log.error("GENPDF: ctx rebuilt from DB payload")
+
+    except Exception as e:
+        log.exception("GENPDF: CONTEXT BUILD FAILED")
+        flash("Failed to rebuild context.", "error")
+        return redirect(url_for("index"))
+
+    # ---- PDF ----------------------------------------------------------
+    try:
         log.error("GENPDF: about to call build_pdf")
+
         ctx = PRCContext(**ctx_dict)
         pdf_path = build_pdf(ctx, OUTPUT_PDF_DIR)
 
         log.error("GENPDF: build_pdf returned path=%s", pdf_path)
 
-        session["pdf_path"] = pdf_path
-        session.modified = True
-        log.error("GENPDF: pdf_path stored in session")
-
         persist_email(ctx.email_to)
-
         flash("PDF generated successfully.", "success")
 
     except Exception as e:
@@ -769,24 +824,18 @@ def genpdf_email():
         flash(str(e), "hint")
         return render_template("review.html", ctx=ctx_dict)
 
-    # ---- EMAIL DECISION ----------------------------------------------
-    
+    # ---- EMAIL --------------------------------------------------------
     recipient_email = ctx_dict.get("email_to")
 
     if recipient_email:
         try:
-            # ALWAYS use SMTP
             send_via_smtp(recipient_email, pdf_path)
             flash("PDF emailed via SMTP.", "success")
         except Exception as e:
             flash("PDF generated, but email failed.", "error")
             flash(str(e), "hint")
     else:
-        flash(
-            "PDF generated successfully. Email not sent (no recipient selected).",
-            "hint",
-        )
-
+        flash("PDF generated successfully. Email not sent.", "hint")
 
     log.error("GENPDF: EXIT normal")
     return render_template("review.html", ctx=ctx_dict)
