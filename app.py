@@ -143,6 +143,8 @@ LOCAL_TZ = ZoneInfo("America/Chicago")
 # Where PDFs are written when GenPDF is clicked
 OUTPUT_PDF_DIR = os.environ.get("PRC_OUTPUT_PDF_DIR", os.path.join(os.getcwd(), "output_pdfs"))
 
+REVIEW_TEMPLATE = "review.html"
+
 # ---------------------------------------------------------------------
 # Required Environment Variables (Email)
 # ---------------------------------------------------------------------
@@ -429,7 +431,7 @@ def review():
         )
     )
 
-    return render_template("review.html", ctx=ctx_dict)
+    return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
 
 # edit Blake Bozarth 5/4/26 pulls the data object --> builds pdf from it --> attempts email
@@ -527,7 +529,7 @@ def genpdf_email():
         log.exception("GENPDF: PDF GENERATION FAILED")
         flash("PDF generation failed.", "error")
         flash(str(e), "hint")
-        return render_template("review.html", ctx=ctx_dict)
+        return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
     # ---- EMAIL --------------------------------------------------------
     recipient_email = ctx_dict.get("email_to")
@@ -543,7 +545,7 @@ def genpdf_email():
         flash("PDF generated successfully. Email not sent.", "hint")
 
     log.error("GENPDF: EXIT normal")
-    return render_template("review.html", ctx=ctx_dict)
+    return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
 
 ''' (old pdf generation + save to local data path)
