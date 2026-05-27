@@ -123,17 +123,14 @@ app.permanent_session_lifetime = timedelta(hours=8)
 # Environment / Config (can be overridden via env vars)
 # ---------------------------------------------------------------------
 
-FABRIC_SERVER = os.environ.get(
-    "PRC_FABRIC_SERVER",
-    "lmxximtgum2ehbbgzpmsepntha-doih7hxdnwru5n7buhf5sjknle.datawarehouse.fabric.microsoft.com",
-)
+FABRIC_SERVER = os.environ.get("PRC_FABRIC_SERVER")
 
-FABRIC_DATABASE = os.environ.get("PRC_FABRIC_DB", "SAM")
-FABRIC_TABLE = os.environ.get("PRC_FABRIC_TABLE", "HR.Termination_DetailBASE")
+FABRIC_DATABASE = os.environ.get("PRC_FABRIC_DB")
+FABRIC_TABLE = os.environ.get("PRC_FABRIC_TABLE")
 
-MSSQL_SERVER = os.environ.get("PRC_MSSQL_SERVER", "QYVMSTNDPDSQL02")
-MSSQL_DATABASE = os.environ.get("PRC_MSSQL_DB", "DecisionSupport")
-MSSQL_TABLE = os.environ.get("PRC_MSSQL_TABLE", "dbo.Productivity Data")
+MSSQL_SERVER = os.environ.get("PRC_MSSQL_SERVER")
+MSSQL_DATABASE = os.environ.get("PRC_MSSQL_DB")
+MSSQL_TABLE = os.environ.get("PRC_MSSQL_TABLE")
 
 DAILY_REFRESH_TIME = os.environ.get("PRC_DAILY_REFRESH", "05:00")
 LOCAL_TZ = ZoneInfo("America/Chicago")
