@@ -5,8 +5,6 @@ PURPOSE
 -------
 This module defines:
   - A Flask web application (routes: "/", "/submit", "/review", "/genpdf_email", "/clear_all")
-  - Startup data preloading into a shared in-memory cache (_CACHE)
-  - A background thread that refreshes all datasets daily at 05:00 AM (Chicago)
 
 RUN MODES
 ---------
@@ -151,9 +149,9 @@ REVIEW_TEMPLATE = "review.html"
 # edit Blake Bozarth 5/4/26 config placeholders for server based mailing
 
 
-PRC_SMTP_HOST = os.environ.get("PRC_SMTP_HOST", "exchange.adbcs.blessinghospital.com")
-PRC_SMTP_PORT = int(os.environ.get("PRC_SMTP_PORT", "25"))
-PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM", "noreply@blessinghospital.com")
+PRC_SMTP_HOST = os.environ.get("PRC_SMTP_HOST",)
+PRC_SMTP_PORT = int(os.environ.get("PRC_SMTP_PORT"))
+PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM",)
 
 
 # ---------------------------------------------------------------------
@@ -233,12 +231,6 @@ def ensure_user_session():
 
 #******************************************************edit Blake Bozarth 4/29 (facility is now derived from the authoritative cost‑center lookup instead of user input; cost center is the unique key and facility is a dependent attribute.)
 def lookup_cost_center_or_raise(cost_center: str) -> dict:
-    """
-    Uses preloaded _CACHE["cost_centers"].
-    Validates by COST CENTER ONLY.
-    Facility is DERIVED from CSV (authoritative).
-    """
-
     
     cc = _normalize_cost_center(cost_center)
 
