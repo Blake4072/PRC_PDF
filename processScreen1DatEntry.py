@@ -203,7 +203,7 @@ def gen_operational_stats() -> Dict[str, str]:
 
 def gen_operational_stats(cost_center: str, header_month: str, prod_df: pd.DataFrame) -> Dict[str, str]:
     
-    if prod_df is None or "Month Number Desc" not in prod_df.columns:
+    if prod_df is None or "Year" not in prod_df.columns:
         return{
                 "bud_pp_vol_ytd": "0",
                 "act_pp_vol_ytd": "0",
