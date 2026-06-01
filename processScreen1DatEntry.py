@@ -404,7 +404,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     agg_df = aggregate_prod(prod_df, target_year)
 
-    header_month = pp_start_date.strftime("%B %Y")
+    header_month = datetime.now().strftime("%B %Y")
 
     if not header_month:
         raise RuntimeError("Invalid header_month")
