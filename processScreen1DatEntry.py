@@ -335,13 +335,15 @@ def aggregate_prod(prod_df):
     
     df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
 
-    raw_counts = df.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
+    df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
 
-    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
-
-    df[COL_PAY_PERIOD] = df[COL_PAY_PERIOD].astype(int)
-
-    df[COL_YEAR] = df[COL_YEAR].astype(str).str.strip().str.upper()
+    df[COL_YEAR] = (
+        df[COL_YEAR]
+        .astype(str)
+        .str.strip()
+        .str.replace(r"\s+", "", regex=True)
+        .str.upper()
+    )
 
     dupes = df[df.duplicated([COL_COST_CENTER, COL_PAY_PERIOD], keep=False)]
 
