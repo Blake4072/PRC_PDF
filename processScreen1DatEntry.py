@@ -228,11 +228,8 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
 
     curr_pp_bud_vol = curr_row[COL_ACTUAL]
 
-    year = curr_row[COL_YEAR]
-
     ytd_df = cc_df[
-        (cc_df[COL_YEAR] == year) &
-        (cc_df[COL_PAY_PERIOD] <= pay_period)
+        cc_df[COL_PAY_PERIOD] <= pay_period
     ]
 
     bud_pp_vol_ytd = ytd_df[COL_BUDGET].sum()
