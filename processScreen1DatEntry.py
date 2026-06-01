@@ -241,6 +241,7 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
     if act_pp_vol_ytd < curr_pp_bud_vol:
         raise RuntimeError("YTD < current PP — invalid state")
     
+    print("DEBUG:", cost_center, pay_period, curr_pp_bud_vol, bud_pp_vol_ytd, act_pp_vol_ytd)
     
     print("DEBUG:",
         cost_center,
@@ -332,47 +333,43 @@ def aggregate_prod(prod_df):
 
     df = prod_df.copy()
 
-    
     df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
-
     df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
 
-    df[COL_YEAR] = (
-        df[COL_YEAR]
-        .astype(str)
-        .str.strip()
-        .str.replace(r"\s+", "", regex=True)
-        .str.upper()
-    )
+    df_prod = df[df[COL_YEAR].str.startswith("PROD")]
+    df_budget = df[df[COL_YEAR].str.startswith("BUDGET")]
 
-    dupes = df[df.duplicated([COL_COST_CENTER, COL_PAY_PERIOD], keep=False)]
-
-    print(dupes[[COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR]].sort_values([COL_COST_CENTER, COL_PAY_PERIOD]))
-
-
-    agg = (
-        df
-        .groupby([COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR], as_index=False)
+    agg_prod = (
+        df_prod
+        .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
         .agg({
-            COL_BUDGET: "sum",
-            COL_ACTUAL: "sum",
-            COL_PP_START: "first"
+            COL_ACTUAL: "sum"
         })
     )
 
-    agg = agg[
-        [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR, COL_BUDGET, COL_ACTUAL, COL_PP_START]
-    ]
+    agg_budget = (
+        df_budget
+        .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
+        .agg({
+            COL_BUDGET: "sum"
+        })
+    )
 
-
+    agg = pd.merge(
+        agg_prod,
+        agg_budget,
+        on=[COL_COST_CENTER, COL_PAY_PERIOD],
+        how="outer"
+    )
 
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
+    print("DEBUG agg_counts:", agg_counts.head())
+    print(agg.head())
+    
+
     if (agg_counts != 1).any():
         raise RuntimeError("Aggregation failed: multiple rows per CC+PP")
-
-    if raw_counts.equals(agg_counts):
-        raise RuntimeError("Aggregation had no effect")
 
     return agg
 
