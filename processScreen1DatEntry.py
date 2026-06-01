@@ -350,14 +350,20 @@ def aggregate_prod(prod_df):
     print(dupes[[COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR]].sort_values([COL_COST_CENTER, COL_PAY_PERIOD]))
 
 
-    agg = df.groupby(
-        [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR],
-        as_index=False
-    ).agg({
-        COL_BUDGET: "sum",
-        COL_ACTUAL: "sum",
-        COL_PP_START: "first"   # safe because it doesn't vary
-    })
+    agg = (
+        df
+        .groupby([COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR], as_index=False)
+        .agg({
+            COL_BUDGET: "sum",
+            COL_ACTUAL: "sum",
+            COL_PP_START: "first"
+        })
+    )
+
+    agg = agg[
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR, COL_BUDGET, COL_ACTUAL, COL_PP_START]
+    ]
+
 
 
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
