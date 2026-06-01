@@ -326,74 +326,56 @@ def aggregate_prod(prod_df, target_year):
 
     df = prod_df.copy()
 
-    # --- normalize keys ---
+    # ------------------------------------------------------------
+    # NORMALIZE KEYS
+    # ------------------------------------------------------------
     df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
     df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
 
+    # ------------------------------------------------------------
+    # NUMERIC ENFORCEMENT (CRITICAL)
+    # ------------------------------------------------------------
     df[COL_ACTUAL] = pd.to_numeric(df[COL_ACTUAL], errors="coerce").fillna(0)
     df[COL_BUDGET] = pd.to_numeric(df[COL_BUDGET], errors="coerce").fillna(0)
 
-    
+    # ------------------------------------------------------------
+    # YEAR FILTER (STRICT)
+    # ------------------------------------------------------------
     year_str = str(target_year)
 
     df = df[
         df[COL_YEAR].str.endswith(year_str, na=False)
     ]
 
+    # ------------------------------------------------------------
+    # USE ONLY PROD ROWS (CORRECT DATA SOURCE)
+    # ------------------------------------------------------------
+    df = df[
+        df[COL_YEAR].astype(str).str.startswith("PROD")
+    ]
 
-    # ============================================================
-    # SPLIT DATASETS BY TYPE
-    # ============================================================
+    # ------------------------------------------------------------
+    # FORCE PROJECTION (REMOVE ALL EXTRA DIMENSIONS)
+    # ------------------------------------------------------------
+    df = df[
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL, COL_BUDGET]
+    ].copy()
 
-    df_prod = df[df[COL_YEAR].astype(str).str.startswith("PROD")]
-    df_budget = df[df[COL_YEAR].astype(str).str.startswith("BUDGET")]
-
-    # ============================================================
-    # FORCE PROJECTION (CRITICAL)
-    # Only retain columns required for aggregation
-    # ============================================================
-
-    df_prod = df_prod[[COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL]].copy()
-    df_budget = df_budget[[COL_COST_CENTER, COL_PAY_PERIOD, COL_BUDGET]].copy()
-
-    # ============================================================
-    # AGGREGATE EACH PIPELINE
-    # ============================================================
-
-    agg_prod = (
-        df_prod
+    # ------------------------------------------------------------
+    # AGGREGATE (SINGLE PASS)
+    # ------------------------------------------------------------
+    agg = (
+        df
         .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
-        .agg({COL_ACTUAL: "sum"})
+        .agg({
+            COL_ACTUAL: "sum",
+            COL_BUDGET: "sum"
+        })
     )
 
-    agg_budget = (
-        df_budget
-        .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
-        .agg({COL_BUDGET: "sum"})
-    )
-
-    # ============================================================
-    # MERGE INTO SINGLE DATASET
-    # ============================================================
-
-    agg = pd.merge(
-        agg_prod,
-        agg_budget,
-        on=[COL_COST_CENTER, COL_PAY_PERIOD],
-        how="outer",
-        validate="one_to_one"
-    )
-
-    
-    agg[COL_ACTUAL] = agg[COL_ACTUAL].fillna(0)
-    agg[COL_BUDGET] = agg[COL_BUDGET].fillna(0)
-
-
-
-    # ============================================================
-    # VALIDATION (DETERMINISTIC GUARANTEE)
-    # ============================================================
-
+    # ------------------------------------------------------------
+    # VALIDATION (MUST BE 1 ROW PER CC + PP)
+    # ------------------------------------------------------------
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
     print("DEBUG agg:")
