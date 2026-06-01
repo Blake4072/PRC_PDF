@@ -343,7 +343,11 @@ def aggregate_prod(prod_df):
 
     df[COL_YEAR] = df[COL_YEAR].astype(str).str.strip().str.upper()
 
-    
+    dupes = df[df.duplicated([COL_COST_CENTER, COL_PAY_PERIOD], keep=False)]
+
+    print(dupes[[COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR]].sort_values([COL_COST_CENTER, COL_PAY_PERIOD]))
+
+
     agg = df.groupby(
         [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR],
         as_index=False
