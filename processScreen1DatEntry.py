@@ -384,6 +384,12 @@ def aggregate_prod(prod_df, target_year):
         validate="one_to_one"
     )
 
+    
+    agg[COL_ACTUAL] = agg[COL_ACTUAL].fillna(0)
+    agg[COL_BUDGET] = agg[COL_BUDGET].fillna(0)
+
+
+
     # ============================================================
     # VALIDATION (DETERMINISTIC GUARANTEE)
     # ============================================================
