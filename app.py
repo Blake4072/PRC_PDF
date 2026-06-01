@@ -404,20 +404,19 @@ def review():
     with eng.connect() as con:
         cost_centers_df = pd.read_sql(query, con)
         prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+        payperiod_df=pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
+
+        
+    if payperiod_df is None or payperiod_df.empty:
+        raise RuntimeError("PAYPERIODTABLE_ returned no rows")
+
 
 
     ctx_dict = processor.process(
         payload,
         cost_centers_df=cost_centers_df,
-        prod_df=prod_df
-    )
-
-    ctx_dict.update(
-        gen_operational_stats(
-            cost_center=ctx_dict["cost_center"],
-            header_month=ctx_dict["header_month"],
-            prod_df=prod_df
-        )
+        prod_df=prod_df,
+        payperiod_df=payperiod_df
     )
 
     return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
@@ -480,19 +479,14 @@ def genpdf_email():
         with eng.connect() as con:
             cost_centers_df = pd.read_sql(query, con)
             prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+            payperiod_df = pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
+
 
         ctx_dict = processor.process(
             payload,
             cost_centers_df=cost_centers_df,
-            prod_df=prod_df
-        )
-
-        ctx_dict.update(
-            gen_operational_stats(
-                cost_center=ctx_dict["cost_center"],
-                header_month=ctx_dict["header_month"],
-                prod_df=prod_df
-            )
+            prod_df=prod_df,
+            payperiod_df=payperiod_df
         )
 
         log.error("GENPDF: ctx rebuilt from DB payload")

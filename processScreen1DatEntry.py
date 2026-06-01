@@ -201,44 +201,63 @@ def gen_operational_stats() -> Dict[str, str]:
     }
     '''
 
-def gen_operational_stats(cost_center: str, header_month: str, prod_df: pd.DataFrame) -> Dict[str, str]:
+def gen_operational_stats(cost_center, pay_period, agg_df):
+
+    cost_center = _normalize_cost_center(cost_center)
+
+    cc_df = agg_df[agg_df["Cost Center"] == cost_center]
+
     
-    if prod_df is None or "Year" not in prod_df.columns:
-        return{
-                "bud_pp_vol_ytd": "0",
-                "act_pp_vol_ytd": "0",
-                "curr_pp_bud_vol": "0",
-                "bud_pp_paid_fte": "0",
-                "act_pp_paid_fte": "0",
-                "index_ytd": "0",
-                "volume_description": "",
-                "budget_salaries": "0",
-                "actual_salaries": "0",
-                "turnover_12mo": "0",
-        }
+    if cc_df["Year"].nunique() > 1:
+        raise RuntimeError("Multiple Years detected in cost center slice")
 
 
-    rows = prod_df[
-        (prod_df["Cost Center"] == str(cost_center)) &
-        (prod_df["Account Category Desc"] == "Salaries Hours") &
-        (prod_df["Month Number Desc"].str.upper() == header_month.split()[0].upper())
+    if cc_df.empty:
+        raise RuntimeError(f"No data for cost center {cost_center}")
+
+    curr_rows = cc_df[cc_df["Pay Period"] == pay_period]
+
+    if len(curr_rows) != 1:
+        raise RuntimeError(
+            f"Expected 1 aggregated row for CC {cost_center}, PP {pay_period}"
+        )
+
+    curr_row = curr_rows.iloc[0]
+
+    # YOUR SPEC:
+    curr_pp_bud_vol = curr_row["Actual Statistic Value"]
+
+    year = curr_row["Year"]
+
+    ytd_df = cc_df[
+        (cc_df["Year"] == year) &
+        (cc_df["Pay Period"] <= pay_period)
     ]
 
-    actual = rows[rows["Year"].str.startswith("ACTUAL")]["GL Month Value"].sum()
-    budget = rows[rows["Year"].str.startswith("FLEX")]["GL Month Value"].sum()
+    if ytd_df.empty:
+        raise RuntimeError("YTD dataset empty")
+
+    bud_pp_vol_ytd = ytd_df["Budget Statistic Value"].sum()
+    act_pp_vol_ytd = ytd_df["Actual Statistic Value"].sum()
+
+    if act_pp_vol_ytd < curr_pp_bud_vol:
+        raise RuntimeError("YTD < current PP — invalid state")
+    
+    
+    print("DEBUG:",
+        cost_center,
+        pay_period,
+        curr_pp_bud_vol,
+        bud_pp_vol_ytd,
+        act_pp_vol_ytd)
+
 
     return {
-        "bud_pp_vol_ytd": str(budget),
-        "act_pp_vol_ytd": str(actual),
-        "curr_pp_bud_vol": str(budget),
-        "bud_pp_paid_fte": str(budget / 80 if budget else 0),
-        "act_pp_paid_fte": str(actual / 80 if actual else 0),
-        "index_ytd": str(actual / budget if budget else 0),
-        "volume_description": "",
-        "budget_salaries": str(budget),
-        "actual_salaries": str(actual),
-        "turnover_12mo": "0",
+        "bud_pp_vol_ytd": bud_pp_vol_ytd,
+        "act_pp_vol_ytd": act_pp_vol_ytd,
+        "curr_pp_bud_vol": curr_pp_bud_vol
     }
+
 
 
 
@@ -275,27 +294,112 @@ def gen_productivity_stats(cost_center: str, header_month: str, prod_df: pd.Data
         "curr_pp_act_vol": str(round(act_vol, 2)),
         "curr_prod_index": str(round(prod_index, 2)),
     }
-'''    
+''' 
+#========================================================
+# find last completed PP + aggregate rows w/ same Year, Cost Center and Pay Period Start Date
+#========================================================
+def get_latest_completed_pp(payperiod_df):
+
+    df = payperiod_df.copy()
+
+    df["Payroll_End_Date"] = pd.to_datetime(df["Payroll_End_Date"])
+
+    today = pd.Timestamp.now()
+
+    df = df[df["Payroll_End_Date"] < today]
+
+    if df.empty:
+        raise RuntimeError("No completed pay periods found")
+
+    df = df.sort_values("Payroll_End_Date")
+
+    row = df.iloc[-1]
+
+    
+    latest_end = row["Payroll_End_Date"]
+
+    if (pd.Timestamp.now() - latest_end).days > 20:
+        raise RuntimeError("PAYPERIODTABLE_ appears stale")
+
+
+    pay_period = row["Pay_Period"]
+    pp_start_date = row["Payroll_Start_Date"]
+
+    if pd.isna(pp_start_date):
+        raise RuntimeError("Missing Payroll_Start_Date in PAYPERIODTABLE_")
+
+    return pay_period, pd.to_datetime(pp_start_date)
+
+def aggregate_prod(prod_df):
+
+    df = prod_df.copy()
+
+    df["Cost Center"] = df["Cost Center"].apply(_normalize_cost_center)
+
+    raw_counts = df.groupby(["Cost Center", "Pay Period"]).size()
+
+    agg = df.groupby(
+        ["Cost Center", "Pay Period", "Pay Period Start Date", "Year"],
+        as_index=False
+    ).agg({
+        "Budget Statistic Value": "sum",
+        "Actual Statistic Value": "sum"
+    })
+
+    agg_counts = agg.groupby(["Cost Center", "Pay Period"]).size()
+
+    if (agg_counts != 1).any():
+        raise RuntimeError("Aggregation failed: multiple rows per CC+PP")
+
+    if raw_counts.equals(agg_counts):
+        raise RuntimeError("Aggregation had no effect")
+
+    return agg
+
+
 
 # =============================================================================
 # Build Context (NO PDF)
 # =============================================================================
-def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,) -> PRCContext:
-    header_month = set_header_month()
+def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None,) -> PRCContext:
     disclaimer_text = set_disclaimer_text()
-    pay_period = set_header_pay_period()
+
+    agg_df = aggregate_prod(prod_df)
+
+    pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
+
+    header_month = pp_start_date.strftime("%B %Y")
+
+    if not header_month:
+        raise RuntimeError("Invalid header_month")
+
+    cost_center = form_fields.get("cost_center")
+
+    if not cost_center:
+        raise RuntimeError("Missing cost_center")
+
+    ops = gen_operational_stats(
+        cost_center=cost_center,
+        pay_period=pay_period,
+        agg_df=agg_df
+    )
+
+    for k, v in ops.items():
+        if v is None:
+            raise RuntimeError(f"Null stat: {k}")
+
 
     cost_center = str(form_fields.get("cost_center", "")).strip()
 
     data = copy_from_data_screen(form_fields)
     fac = extract_facility_name(data["cost_center"], data["facility"], cost_centers_df=cost_centers_df)
 
-    op = gen_operational_stats(cost_center, header_month, prod_df)
+    #op = gen_operational_stats(cost_center, header_month, prod_df)
     pr = gen_productivity_stats(cost_center, header_month, prod_df)
 
     return PRCContext(
         header_month=header_month,
-        pay_period=pay_period,
+        pay_period=str(pay_period),
         disclaimer_text=disclaimer_text,
 
         date_requested=data["date_requested"],
@@ -318,16 +422,16 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         q5_similar_roles=data["q5"],
         q6_part_time=data["q6"],
 
-        bud_pp_vol_ytd=op["bud_pp_vol_ytd"],
-        act_pp_vol_ytd=op["act_pp_vol_ytd"],
-        curr_pp_bud_vol=op["curr_pp_bud_vol"],
-        bud_pp_paid_fte=op["bud_pp_paid_fte"],
-        act_pp_paid_fte=op["act_pp_paid_fte"],
-        index_ytd=op["index_ytd"],
-        volume_description=op["volume_description"],
-        budget_salaries=op["budget_salaries"],
-        actual_salaries=op["actual_salaries"],
-        turnover_12mo=op["turnover_12mo"],
+        bud_pp_vol_ytd=ops["bud_pp_vol_ytd"],
+        act_pp_vol_ytd=ops["act_pp_vol_ytd"],
+        curr_pp_bud_vol=ops["curr_pp_bud_vol"],
+        bud_pp_paid_fte="",
+        act_pp_paid_fte="",
+        index_ytd="",
+        volume_description="",
+        budget_salaries="",
+        actual_salaries="",
+        turnover_12mo="",
 
         curr_pp_worked_fte=pr["curr_pp_worked_fte"],
         curr_pp_paid_fte=pr["curr_pp_paid_fte"],
@@ -497,6 +601,18 @@ def build_pdf(ctx: PRCContext, out_dir: str) -> str:
 # =============================================================================
 # Main entrypoint called by Flask on submit (returns dict for review page)
 # =============================================================================
-def process(form_fields, cost_centers_df=None, prod_df=None,):
-    ctx = build_context(form_fields, cost_centers_df=cost_centers_df, prod_df=prod_df,)
+
+def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None):
+
+    if payperiod_df is None or payperiod_df.empty:
+        raise RuntimeError("PAYPERIODTABLE not loaded")
+
+    ctx = build_context(
+        form_fields,
+        cost_centers_df=cost_centers_df,
+        prod_df=prod_df,
+        payperiod_df=payperiod_df
+    )
+
     return asdict(ctx)
+
