@@ -224,6 +224,9 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
 
     curr_rows = cc_df[cc_df[COL_PAY_PERIOD] == pay_period]
 
+    if curr_rows.empty:
+        raise RuntimeError(f"No data for CC {cost_center} PP {pay_period}")
+
     curr_row = curr_rows.iloc[0]
 
     curr_pp_bud_vol = curr_row[COL_ACTUAL]
@@ -239,13 +242,6 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
         raise RuntimeError("YTD < current PP — invalid state")
     
     print("DEBUG:", cost_center, pay_period, curr_pp_bud_vol, bud_pp_vol_ytd, act_pp_vol_ytd)
-    
-    print("DEBUG:",
-        cost_center,
-        pay_period,
-        curr_pp_bud_vol,
-        bud_pp_vol_ytd,
-        act_pp_vol_ytd)
 
 
     return {
@@ -326,13 +322,24 @@ def get_latest_completed_pp(payperiod_df):
 
     return pay_period, pd.to_datetime(pp_start_date)
 
-def aggregate_prod(prod_df):
+def aggregate_prod(prod_df, target_year):
 
     df = prod_df.copy()
 
     # --- normalize keys ---
     df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
     df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
+
+    df[COL_ACTUAL] = pd.to_numeric(df[COL_ACTUAL], errors="coerce").fillna(0)
+    df[COL_BUDGET] = pd.to_numeric(df[COL_BUDGET], errors="coerce").fillna(0)
+
+    
+    year_str = str(target_year)
+
+    df = df[
+        df[COL_YEAR].str.endswith(year_str, na=False)
+    ]
+
 
     # ============================================================
     # SPLIT DATASETS BY TYPE
@@ -403,13 +410,11 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
 
+    target_year = pp_start_date.year
+
     prod_df[COL_PAY_PERIOD] = pd.to_numeric(prod_df[COL_PAY_PERIOD], errors="coerce")
 
-    prod_df = prod_df[
-        prod_df[COL_PAY_PERIOD] == pay_period
-    ]
-
-    agg_df = aggregate_prod(prod_df)
+    agg_df = aggregate_prod(prod_df, target_year)
 
     header_month = pp_start_date.strftime("%B %Y")
 
