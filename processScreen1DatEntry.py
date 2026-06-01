@@ -337,13 +337,16 @@ def aggregate_prod(prod_df):
 
     raw_counts = df.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
+    
     agg = df.groupby(
-        [COL_COST_CENTER, COL_PAY_PERIOD, COL_PP_START, COL_YEAR],
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR],
         as_index=False
-    ).agg({        
+    ).agg({
         COL_BUDGET: "sum",
-        COL_ACTUAL: "sum"
+        COL_ACTUAL: "sum",
+        COL_PP_START: "first"   # safe because it doesn't vary
     })
+
 
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
