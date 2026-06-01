@@ -388,6 +388,13 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
 
+    prod_df = prod_df[
+        prod_df[COL_PAY_PERIOD] == pay_period
+    ]
+
+    agg_df = aggregate_prod(prod_df)
+
+
     header_month = pp_start_date.strftime("%B %Y")
 
     if not header_month:
