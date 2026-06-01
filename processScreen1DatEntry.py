@@ -359,7 +359,8 @@ def aggregate_prod(prod_df):
         agg_prod,
         agg_budget,
         on=[COL_COST_CENTER, COL_PAY_PERIOD],
-        how="outer"
+        how="outer",
+        validate="one_to_one"
     )
 
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
