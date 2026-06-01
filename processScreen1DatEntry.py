@@ -33,6 +33,12 @@ COL_YEAR = "Year"
 COL_BUDGET = "Budget Statistic Value"
 COL_ACTUAL = "Actual Statistic Value"
 
+# UI label constants (separate from schema)
+LBL_COST_CENTER = "Cost Center"
+LBL_FACILITY = "Facility"
+LBL_COST_CENTER_NAME = "Cost Center Name"
+LBL_DATE_REQUESTED = "Date Requested"
+LBL_REQUISITIONS = "Requisition(s)"
 
 
 # =============================================================================
@@ -487,7 +493,15 @@ def build_pdf(ctx: PRCContext, out_dir: str) -> str:
     story.append(Paragraph(ctx.disclaimer_text.replace("\n", "<br/>"), small_style))
     story.append(Spacer(1, 8))
 
-    top_headers = ["Date Requested", "Cost Center", "Facility", "Cost Center Name", "Requisition(s)"]
+    
+    top_headers = [
+        LBL_DATE_REQUESTED,
+        LBL_COST_CENTER,
+        LBL_FACILITY,
+        LBL_COST_CENTER_NAME,
+        LBL_REQUISITIONS
+    ]
+
     top_values  = [ctx.date_requested, ctx.cost_center, ctx.facility, ctx.cost_center_name, ctx.requisitions]
     t1 = Table([top_headers, top_values], colWidths=[1.2*inch, 1.2*inch, 1.2*inch, 2.2*inch, 2.0*inch])
     t1.setStyle(TableStyle([
