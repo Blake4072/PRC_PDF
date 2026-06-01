@@ -224,9 +224,11 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
 
     curr_rows = cc_df[cc_df[COL_PAY_PERIOD] == pay_period]
 
-    curr_pp_bud_vol = curr_rows[COL_ACTUAL]
+    curr_row = curr_rows.iloc[0]
 
-    year = curr_rows[COL_YEAR]
+    curr_pp_bud_vol = curr_row[COL_ACTUAL]
+
+    year = curr_row[COL_YEAR]
 
     ytd_df = cc_df[
         (cc_df[COL_YEAR] == year) &
