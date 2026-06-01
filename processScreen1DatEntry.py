@@ -333,27 +333,44 @@ def aggregate_prod(prod_df):
 
     df = prod_df.copy()
 
+    # --- normalize keys ---
     df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
     df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
 
-    df_prod = df[df[COL_YEAR].str.startswith("PROD")]
-    df_budget = df[df[COL_YEAR].str.startswith("BUDGET")]
+    # ============================================================
+    # SPLIT DATASETS BY TYPE
+    # ============================================================
+
+    df_prod = df[df[COL_YEAR].astype(str).str.startswith("PROD")]
+    df_budget = df[df[COL_YEAR].astype(str).str.startswith("BUDGET")]
+
+    # ============================================================
+    # FORCE PROJECTION (CRITICAL)
+    # Only retain columns required for aggregation
+    # ============================================================
+
+    df_prod = df_prod[[COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL]].copy()
+    df_budget = df_budget[[COL_COST_CENTER, COL_PAY_PERIOD, COL_BUDGET]].copy()
+
+    # ============================================================
+    # AGGREGATE EACH PIPELINE
+    # ============================================================
 
     agg_prod = (
         df_prod
         .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
-        .agg({
-            COL_ACTUAL: "sum"
-        })
+        .agg({COL_ACTUAL: "sum"})
     )
 
     agg_budget = (
         df_budget
         .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
-        .agg({
-            COL_BUDGET: "sum"
-        })
+        .agg({COL_BUDGET: "sum"})
     )
+
+    # ============================================================
+    # MERGE INTO SINGLE DATASET
+    # ============================================================
 
     agg = pd.merge(
         agg_prod,
@@ -363,17 +380,22 @@ def aggregate_prod(prod_df):
         validate="one_to_one"
     )
 
+    # ============================================================
+    # VALIDATION (DETERMINISTIC GUARANTEE)
+    # ============================================================
+
     agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
-    print("DEBUG agg_counts:", agg_counts.head())
-    print(agg.head())
-    
+    print("DEBUG agg:")
+    print(agg)
+
+    print("DEBUG agg_counts:")
+    print(agg_counts)
 
     if (agg_counts != 1).any():
         raise RuntimeError("Aggregation failed: multiple rows per CC+PP")
 
     return agg
-
 
 
 # =============================================================================
