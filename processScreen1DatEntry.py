@@ -337,6 +337,12 @@ def aggregate_prod(prod_df):
 
     raw_counts = df.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
+    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
+
+    df[COL_PAY_PERIOD] = df[COL_PAY_PERIOD].astype(int)
+
+    df[COL_YEAR] = df[COL_YEAR].astype(str).str.strip().str.upper()
+
     
     agg = df.groupby(
         [COL_COST_CENTER, COL_PAY_PERIOD, COL_YEAR],
