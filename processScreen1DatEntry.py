@@ -174,7 +174,7 @@ def extract_facility_name(
 
     If missing or not found => ValueError.
     """
-    cost_centers_df["_CC_NORM"] = cost_centers_df["Cost Center"].apply(_normalize_cost_center)
+    cost_centers_df["_CC_NORM"] = cost_centers_df[COL_COST_CENTER].apply(_normalize_cost_center)
 
     _ = facility_from_screen  # facility is derived from lookup now
 
