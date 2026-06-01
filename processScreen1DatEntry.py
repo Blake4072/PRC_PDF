@@ -384,11 +384,14 @@ def aggregate_prod(prod_df):
 def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None,) -> PRCContext:
     disclaimer_text = set_disclaimer_text()
 
-    pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
+    
+    # normalize BEFORE filtering
+    prod_df[COL_PAY_PERIOD] = pd.to_numeric(prod_df[COL_PAY_PERIOD], errors="coerce")
 
     prod_df = prod_df[
-        prod_df[COL_PAY_PERIOD] == pay_period
+        prod_df[COL_PAY_PERIOD] == int(pay_period)
     ]
+
 
     agg_df = aggregate_prod(prod_df)
 
