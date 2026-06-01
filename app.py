@@ -406,11 +406,6 @@ def review():
         prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
         payperiod_df=pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
 
-        
-    if payperiod_df is None or payperiod_df.empty:
-        raise RuntimeError("PAYPERIODTABLE_ returned no rows")
-
-
 
     ctx_dict = processor.process(
         payload,

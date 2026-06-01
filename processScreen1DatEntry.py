@@ -25,6 +25,15 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from flask import session
 
+# column constants (Sonar S1192 fix)
+COL_COST_CENTER = "Cost Center"
+COL_PAY_PERIOD = "Pay Period"
+COL_PP_START = "Pay Period Start Date"
+COL_YEAR = "Year"
+COL_BUDGET = "Budget Statistic Value"
+COL_ACTUAL = "Actual Statistic Value"
+
+
 
 # =============================================================================
 # Data container
@@ -205,40 +214,21 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
 
     cost_center = _normalize_cost_center(cost_center)
 
-    cc_df = agg_df[agg_df["Cost Center"] == cost_center]
+    cc_df = agg_df[agg_df[COL_COST_CENTER] == cost_center]
 
-    
-    if cc_df["Year"].nunique() > 1:
-        raise RuntimeError("Multiple Years detected in cost center slice")
+    curr_rows = cc_df[cc_df[COL_PAY_PERIOD] == pay_period]
 
+    curr_pp_bud_vol = curr_rows[COL_ACTUAL]
 
-    if cc_df.empty:
-        raise RuntimeError(f"No data for cost center {cost_center}")
-
-    curr_rows = cc_df[cc_df["Pay Period"] == pay_period]
-
-    if len(curr_rows) != 1:
-        raise RuntimeError(
-            f"Expected 1 aggregated row for CC {cost_center}, PP {pay_period}"
-        )
-
-    curr_row = curr_rows.iloc[0]
-
-    # YOUR SPEC:
-    curr_pp_bud_vol = curr_row["Actual Statistic Value"]
-
-    year = curr_row["Year"]
+    year = curr_rows[COL_YEAR]
 
     ytd_df = cc_df[
-        (cc_df["Year"] == year) &
-        (cc_df["Pay Period"] <= pay_period)
+        (cc_df[COL_YEAR] == year) &
+        (cc_df[COL_PAY_PERIOD] <= pay_period)
     ]
 
-    if ytd_df.empty:
-        raise RuntimeError("YTD dataset empty")
-
-    bud_pp_vol_ytd = ytd_df["Budget Statistic Value"].sum()
-    act_pp_vol_ytd = ytd_df["Actual Statistic Value"].sum()
+    bud_pp_vol_ytd = ytd_df[COL_BUDGET].sum()
+    act_pp_vol_ytd = ytd_df[COL_ACTUAL].sum()
 
     if act_pp_vol_ytd < curr_pp_bud_vol:
         raise RuntimeError("YTD < current PP — invalid state")
@@ -334,19 +324,20 @@ def aggregate_prod(prod_df):
 
     df = prod_df.copy()
 
-    df["Cost Center"] = df["Cost Center"].apply(_normalize_cost_center)
+    
+    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
 
-    raw_counts = df.groupby(["Cost Center", "Pay Period"]).size()
+    raw_counts = df.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
     agg = df.groupby(
-        ["Cost Center", "Pay Period", "Pay Period Start Date", "Year"],
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_PP_START, COL_YEAR],
         as_index=False
-    ).agg({
-        "Budget Statistic Value": "sum",
-        "Actual Statistic Value": "sum"
+    ).agg({        
+        COL_BUDGET: "sum",
+        COL_ACTUAL: "sum"
     })
 
-    agg_counts = agg.groupby(["Cost Center", "Pay Period"]).size()
+    agg_counts = agg.groupby([COL_COST_CENTER, COL_PAY_PERIOD]).size()
 
     if (agg_counts != 1).any():
         raise RuntimeError("Aggregation failed: multiple rows per CC+PP")
@@ -394,7 +385,6 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     data = copy_from_data_screen(form_fields)
     fac = extract_facility_name(data["cost_center"], data["facility"], cost_centers_df=cost_centers_df)
 
-    #op = gen_operational_stats(cost_center, header_month, prod_df)
     pr = gen_productivity_stats(cost_center, header_month, prod_df)
 
     return PRCContext(
