@@ -252,7 +252,7 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
         "curr_pp_bud_vol": curr_pp_bud_vol
     }
 
-def return_Bud_PP_FTEs(cost_center, pay_period, agg_df):
+def return_bud_pp_ftes(cost_center, pay_period, agg_df):
 
     cc = _normalize_cost_center(cost_center)
 
@@ -272,7 +272,7 @@ def return_Bud_PP_FTEs(cost_center, pay_period, agg_df):
     return curr_rows.iloc[0][COL_BUDGET_FTE]
 
 
-def return_Act_PP_FTEs(cost_center, pay_period, agg_df):
+def return_act_pp_ftes(cost_center, pay_period, agg_df):
 
     cc = _normalize_cost_center(cost_center)
 
