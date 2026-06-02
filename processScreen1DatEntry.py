@@ -464,13 +464,13 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         agg_df=agg_df
     )
 
-    bud_pp_paid_fte = return_Bud_PP_FTEs(
+    bud_pp_paid_fte = return_bud_pp_ftes(
         cost_center,
         pay_period,
         agg_df
     )
 
-    act_pp_paid_fte = return_Act_PP_FTEs(
+    act_pp_paid_fte = return_act_pp_ftes(
         cost_center,
         pay_period,
         agg_df
