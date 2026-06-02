@@ -32,6 +32,8 @@ COL_PP_START = "Pay Period Start Date"
 COL_YEAR = "Year"
 COL_BUDGET = "Budget Statistic Value"
 COL_ACTUAL = "Actual Statistic Value"
+COL_BUDGET_FTE = "Budget FTE's"
+COL_ACTUAL_FTE = "Actual FTE's"
 
 # UI label constants (separate from schema)
 LBL_COST_CENTER = "Cost Center"
@@ -250,6 +252,46 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
         "curr_pp_bud_vol": curr_pp_bud_vol
     }
 
+def return_Bud_PP_FTEs(cost_center, pay_period, agg_df):
+
+    cc = _normalize_cost_center(cost_center)
+
+    cc_df = agg_df[
+        agg_df[COL_COST_CENTER] == cc
+    ]
+
+    curr_rows = cc_df[
+        cc_df[COL_PAY_PERIOD] == pay_period
+    ]
+
+    if curr_rows.empty:
+        raise RuntimeError(
+            f"No FTE data for CC {cost_center} PP {pay_period}"
+        )
+
+    return curr_rows.iloc[0][COL_BUDGET_FTE]
+
+
+def return_Act_PP_FTEs(cost_center, pay_period, agg_df):
+
+    cc = _normalize_cost_center(cost_center)
+
+    cc_df = agg_df[
+        agg_df[COL_COST_CENTER] == cc
+    ]
+
+    curr_rows = cc_df[
+        cc_df[COL_PAY_PERIOD] == pay_period
+    ]
+
+    if curr_rows.empty:
+        raise RuntimeError(
+            f"No FTE data for CC {cost_center} PP {pay_period}"
+        )
+
+    return curr_rows.iloc[0][COL_ACTUAL_FTE]
+
+
 
 
 
@@ -358,7 +400,7 @@ def aggregate_prod(prod_df, target_year):
     # FORCE PROJECTION (REMOVE ALL EXTRA DIMENSIONS)
     # ------------------------------------------------------------
     df = df[
-        [COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL, COL_BUDGET]
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL, COL_BUDGET, COL_BUDGET_FTE,COL_ACTUAL_FTE,]
     ].copy()
 
     # ------------------------------------------------------------
@@ -369,7 +411,9 @@ def aggregate_prod(prod_df, target_year):
         .groupby([COL_COST_CENTER, COL_PAY_PERIOD], as_index=False)
         .agg({
             COL_ACTUAL: "sum",
-            COL_BUDGET: "sum"
+            COL_BUDGET: "sum",
+            COL_BUDGET_FTE: "sum",
+            COL_ACTUAL_FTE: "sum",
         })
     )
 
@@ -420,6 +464,19 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         agg_df=agg_df
     )
 
+    bud_pp_paid_fte = return_Bud_PP_FTEs(
+        cost_center,
+        pay_period,
+        agg_df
+    )
+
+    act_pp_paid_fte = return_Act_PP_FTEs(
+        cost_center,
+        pay_period,
+        agg_df
+    )
+
+
     for k, v in ops.items():
         if v is None:
             raise RuntimeError(f"Null stat: {k}")
@@ -460,8 +517,8 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         bud_pp_vol_ytd=ops["bud_pp_vol_ytd"],
         act_pp_vol_ytd=ops["act_pp_vol_ytd"],
         curr_pp_bud_vol=ops["curr_pp_bud_vol"],
-        bud_pp_paid_fte="",
-        act_pp_paid_fte="",
+        bud_pp_paid_fte=bud_pp_paid_fte,
+        act_pp_paid_fte=act_pp_paid_fte,
         index_ytd="",
         volume_description="",
         budget_salaries="",
