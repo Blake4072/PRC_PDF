@@ -115,6 +115,15 @@ def _normalize_cost_center(x: str) -> str:
         s = s.lstrip("0") or "0"
     return s.upper()
 
+# =============================================================================
+# Rounding helper 
+# =============================================================================
+
+def _round0(x):
+    try:
+        return str(int(round(float(x), 0)))
+    except Exception:
+        return str(x)
 
 # =============================================================================
 # Step 1: SetHeaderMonth
@@ -608,15 +617,15 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         q5_similar_roles=data["q5"],
         q6_part_time=data["q6"],
 
-        bud_pp_vol_ytd=round(ops["bud_pp_vol_ytd"], 1),
-        act_pp_vol_ytd=round(ops["act_pp_vol_ytd"], 1),
-        curr_pp_bud_vol=round(ops["curr_pp_bud_vol"], 1),
-        bud_pp_paid_fte=round(bud_pp_paid_fte, 1),
-        act_pp_paid_fte=round(act_pp_paid_fte, 1),
+        bud_pp_vol_ytd=_round0(ops["bud_pp_vol_ytd"]),
+        act_pp_vol_ytd=_round0(ops["act_pp_vol_ytd"]),
+        curr_pp_bud_vol=_round0(ops["curr_pp_bud_vol"]),
+        bud_pp_paid_fte=_round0(bud_pp_paid_fte),
+        act_pp_paid_fte=_round0(act_pp_paid_fte),
         index_ytd="",
         volume_description=volume_description,
-        budget_salaries=round(budget_salaries, 1),
-        actual_salaries=round(actual_salaries, 1),
+        budget_salaries=_round0(budget_salaries),
+        actual_salaries=_round0(actual_salaries),
         turnover_12mo="",
 
         curr_pp_worked_fte=pr["curr_pp_worked_fte"],
