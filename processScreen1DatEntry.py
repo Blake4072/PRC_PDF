@@ -25,9 +25,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from flask import session
 
-# column constants (Sonar S1192 fix)
+# column constants 
 COL_COST_CENTER = "Cost Center"
-COL_COST_CENTER_SAL = "Cost_Center"
+COL_COST_CENTER_SAL = "Cost_Center" #Used in the Actual/Budget Saaries table compute only
 COL_PAY_PERIOD = "Pay Period"
 COL_PP_START = "Pay Period Start Date"
 COL_YEAR = "Year"
