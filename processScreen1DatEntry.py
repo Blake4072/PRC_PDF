@@ -27,6 +27,7 @@ from flask import session
 
 # column constants (Sonar S1192 fix)
 COL_COST_CENTER = "Cost Center"
+COL_COST_CENTER_SAL = "Cost_Center"
 COL_PAY_PERIOD = "Pay Period"
 COL_PP_START = "Pay Period Start Date"
 COL_YEAR = "Year"
@@ -329,7 +330,7 @@ def compute_salary_metrics(cost_center, salaries_df):
     # ----------------------------------
     # normalize
     # ----------------------------------
-    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
+    df[COL_COST_CENTER_SAL] = df[COL_COST_CENTER_SAL].apply(_normalize_cost_center)
     df[COL_MONTH] = pd.to_numeric(df[COL_MONTH], errors="coerce")
     df[COL_GL_VALUE] = pd.to_numeric(df[COL_GL_VALUE], errors="coerce").fillna(0)
 
@@ -354,7 +355,7 @@ def compute_salary_metrics(cost_center, salaries_df):
     # ----------------------------------
     # filter base
     # ----------------------------------
-    base = df[df[COL_COST_CENTER] == cc]
+    base = df[df[COL_COST_CENTER_SAL] == cc]
 
     # ----------------------------------
     # YTD FILTER (<= prev month)
