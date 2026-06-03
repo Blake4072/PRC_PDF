@@ -406,13 +406,16 @@ def review():
         prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
         payperiod_df=pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
         volume_df = pd.read_sql("SELECT Dept, Stat_Desc FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]",con)
+        salaries_df = pd.read_sql("SELECT * FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]",con)
+
 
     ctx_dict = processor.process(
         payload,
         cost_centers_df=cost_centers_df,
         prod_df=prod_df,
         payperiod_df=payperiod_df,
-        volume_df=volume_df
+        volume_df=volume_df,
+        salaries_df=salaries_df
     )
 
     return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
@@ -477,6 +480,8 @@ def genpdf_email():
             prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
             payperiod_df = pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
             volume_df = pd.read_sql("SELECT Dept, Stat_Desc FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]",con)
+            salaries_df = pd.read_sql("SELECT * FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]",con)
+
 
 
 
@@ -485,7 +490,8 @@ def genpdf_email():
             cost_centers_df=cost_centers_df,
             prod_df=prod_df,
             payperiod_df=payperiod_df,
-            volume_df=volume_df
+            volume_df=volume_df,
+            salaries_df=salaries_df
         )
 
         log.error("GENPDF: ctx rebuilt from DB payload")

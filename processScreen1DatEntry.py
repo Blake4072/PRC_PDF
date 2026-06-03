@@ -36,8 +36,16 @@ COL_BUDGET_FTE = "Budget FTE's"
 COL_ACTUAL_FTE = "Actual FTE's"
 COL_DEPT = "Dept"
 COL_STAT_DESC = "Stat_Desc"
+COL_SAL_YEAR = "Year"
+COL_MONTH = "Month_Number"
+COL_GL_VALUE = "GL_Month_Value"
 
-# UI label constants (separate from schema)
+
+#Column Value Prefixes
+YEAR_PREFIX_FLEX = "FLEX"
+YEAR_PREFIX_ACTUAL = "ACTUAL"
+
+# UI label constants
 LBL_COST_CENTER = "Cost Center"
 LBL_FACILITY = "Facility"
 LBL_COST_CENTER_NAME = "Cost Center Name"
@@ -312,8 +320,62 @@ def return_act_pp_ftes(cost_center, pay_period, agg_df):
 
     return curr_rows.iloc[0][COL_ACTUAL_FTE]
 
+def compute_salary_metrics(cost_center, salaries_df):
 
+    cc = _normalize_cost_center(cost_center)
 
+    df = salaries_df.copy()
+
+    # ----------------------------------
+    # normalize
+    # ----------------------------------
+    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
+    df[COL_MONTH] = pd.to_numeric(df[COL_MONTH], errors="coerce")
+    df[COL_GL_VALUE] = pd.to_numeric(df[COL_GL_VALUE], errors="coerce").fillna(0)
+
+    # ----------------------------------
+    # derive time (previous month)
+    # ----------------------------------
+    today = datetime.now()
+
+    year = str(today.year)
+    prev_month = today.month - 1
+
+    if prev_month == 0:
+        prev_month = 12
+        year = str(today.year - 1)
+
+    # ----------------------------------
+    # build Year keys
+    # ----------------------------------
+    flex_year = YEAR_PREFIX_FLEX + year
+    actual_year = YEAR_PREFIX_ACTUAL + year
+
+    # ----------------------------------
+    # filter base
+    # ----------------------------------
+    base = df[df[COL_COST_CENTER] == cc]
+
+    # ----------------------------------
+    # YTD FILTER (<= prev month)
+    # ----------------------------------
+    bud_df = base[
+        (base[COL_SAL_YEAR] == flex_year) &
+        (base[COL_MONTH] <= prev_month)
+    ]
+
+    act_df = base[
+        (base[COL_SAL_YEAR] == actual_year) &
+        (base[COL_MONTH] <= prev_month)
+    ]
+
+    # ----------------------------------
+    # SUM
+    # ----------------------------------
+    budget = bud_df[COL_GL_VALUE].sum()
+    actual = act_df[COL_GL_VALUE].sum()
+
+    return budget, actual
 
 
 # =============================================================================
@@ -458,7 +520,7 @@ def aggregate_prod(prod_df, target_year):
 # =============================================================================
 # Build Context (NO PDF)
 # =============================================================================
-def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None, volume_df=None) -> PRCContext:
+def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None, volume_df=None, salaries_df=None) -> PRCContext:
     disclaimer_text = set_disclaimer_text()
 
     pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
@@ -500,6 +562,11 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     volume_description = extract_volume_description(
         cost_center,
         volume_df
+    )
+
+    budget_salaries, actual_salaries = compute_salary_metrics(
+        cost_center,
+        salaries_df
     )
 
 
@@ -547,8 +614,8 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         act_pp_paid_fte=round(act_pp_paid_fte, 1),
         index_ytd="",
         volume_description=volume_description,
-        budget_salaries="",
-        actual_salaries="",
+        budget_salaries=round(budget_salaries, 1),
+        actual_salaries=round(actual_salaries, 1),
         turnover_12mo="",
 
         curr_pp_worked_fte=pr["curr_pp_worked_fte"],
@@ -728,7 +795,7 @@ def build_pdf(ctx: PRCContext, out_dir: str) -> str:
 # Main entrypoint called by Flask on submit (returns dict for review page)
 # =============================================================================
 
-def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None, volume_df=None):
+def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None, volume_df=None, salaries_df=None):
 
     if payperiod_df is None or payperiod_df.empty:
         raise RuntimeError("PAYPERIODTABLE not loaded")
@@ -738,7 +805,8 @@ def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None, 
         cost_centers_df=cost_centers_df,
         prod_df=prod_df,
         payperiod_df=payperiod_df,
-        volume_df=volume_df
+        volume_df=volume_df,
+        salaries_df=salaries_df
     )
 
     return asdict(ctx)
