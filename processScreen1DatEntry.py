@@ -34,6 +34,8 @@ COL_BUDGET = "Budget Statistic Value"
 COL_ACTUAL = "Actual Statistic Value"
 COL_BUDGET_FTE = "Budget FTE's"
 COL_ACTUAL_FTE = "Actual FTE's"
+COL_DEPT = "Dept"
+COL_STAT_DESC = "Stat_Desc"
 
 # UI label constants (separate from schema)
 LBL_COST_CENTER = "Cost Center"
@@ -197,6 +199,25 @@ def extract_facility_name(
     cc_desc = str(row.get("Cost Center Desc", "")).strip()
 
     return {"facility": facility_desc, "cost_center_name": cc_desc}
+
+
+def extract_volume_description(cost_center: str, volume_df: pd.DataFrame) -> str:
+
+    cc = _normalize_cost_center(cost_center)
+
+    if volume_df is None or getattr(volume_df, "empty", True):
+        raise RuntimeError("Volume description table not loaded")
+
+    df = volume_df.copy()
+
+    df[COL_DEPT] = df[COL_DEPT].astype(str).str.strip()
+
+    row = df[df[COL_DEPT] == cc]
+
+    if row.empty:
+        return ""  # safe fallback (description null allowed)
+
+    return str(row.iloc[0][COL_STAT_DESC]).strip()
 
 
 # =============================================================================
@@ -437,7 +458,7 @@ def aggregate_prod(prod_df, target_year):
 # =============================================================================
 # Build Context (NO PDF)
 # =============================================================================
-def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None,) -> PRCContext:
+def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None, volume_df=None) -> PRCContext:
     disclaimer_text = set_disclaimer_text()
 
     pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
@@ -449,7 +470,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     agg_df = aggregate_prod(prod_df, target_year)
 
     header_month = pp_start_date.strftime("%B %Y")
-    
+
     if not header_month:
         raise RuntimeError("Invalid header_month")
 
@@ -474,6 +495,11 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         cost_center,
         pay_period,
         agg_df
+    )
+
+    volume_description = extract_volume_description(
+        cost_center,
+        volume_df
     )
 
 
@@ -520,7 +546,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         bud_pp_paid_fte=round(bud_pp_paid_fte, 1),
         act_pp_paid_fte=round(act_pp_paid_fte, 1),
         index_ytd="",
-        volume_description="",
+        volume_description=volume_description,
         budget_salaries="",
         actual_salaries="",
         turnover_12mo="",
@@ -702,7 +728,7 @@ def build_pdf(ctx: PRCContext, out_dir: str) -> str:
 # Main entrypoint called by Flask on submit (returns dict for review page)
 # =============================================================================
 
-def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None):
+def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None, volume_df=None):
 
     if payperiod_df is None or payperiod_df.empty:
         raise RuntimeError("PAYPERIODTABLE not loaded")
@@ -711,7 +737,8 @@ def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None):
         form_fields,
         cost_centers_df=cost_centers_df,
         prod_df=prod_df,
-        payperiod_df=payperiod_df
+        payperiod_df=payperiod_df,
+        volume_df=volume_df
     )
 
     return asdict(ctx)
