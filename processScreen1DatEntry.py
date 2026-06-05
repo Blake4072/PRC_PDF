@@ -40,6 +40,8 @@ COL_STAT_DESC = "Stat_Desc"
 COL_SAL_YEAR = "Year"
 COL_MONTH = "Month_Number"
 COL_GL_VALUE = "GL_Month_Value"
+COL_WORKED_FTE = "Worked FTE's"
+
 
 
 #Column Value Prefixes
@@ -61,6 +63,7 @@ LBL_REQUISITIONS = "Requisition(s)"
 class PRCContext:
     header_month: str
     pay_period: str
+    fiscal_year: str
     disclaimer_text: str
 
     # From data screen
@@ -493,7 +496,7 @@ def aggregate_prod(prod_df, target_year):
     # FORCE PROJECTION (REMOVE ALL EXTRA DIMENSIONS)
     # ------------------------------------------------------------
     df = df[
-        [COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL, COL_BUDGET, COL_BUDGET_FTE,COL_ACTUAL_FTE,]
+        [COL_COST_CENTER, COL_PAY_PERIOD, COL_ACTUAL, COL_BUDGET, COL_BUDGET_FTE,COL_ACTUAL_FTE, COL_WORKED_FTE,]
     ].copy()
 
     # ------------------------------------------------------------
@@ -507,6 +510,7 @@ def aggregate_prod(prod_df, target_year):
             COL_BUDGET: "sum",
             COL_BUDGET_FTE: "sum",
             COL_ACTUAL_FTE: "sum",
+            COL_WORKED_FTE: "sum",
         })
     )
 
@@ -537,9 +541,21 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     target_year = pp_start_date.year
 
+    fiscal_year = str(target_year)
+
     prod_df[COL_PAY_PERIOD] = pd.to_numeric(prod_df[COL_PAY_PERIOD], errors="coerce")
 
     agg_df = aggregate_prod(prod_df, target_year)
+
+    cc_norm = _normalize_cost_center(cost_center)
+
+    curr_row = agg_df[
+        (agg_df[COL_COST_CENTER] == cc_norm) &
+        (agg_df[COL_PAY_PERIOD] == pay_period)
+    ].iloc[0]
+
+    curr_pp_worked_fte = curr_row[COL_WORKED_FTE]
+    curr_pp_paid_fte = curr_row[COL_ACTUAL_FTE]
 
     header_month = pp_start_date.strftime("%B %Y")
 
@@ -595,6 +611,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     return PRCContext(
         header_month=header_month,
         pay_period=str(pay_period),
+        fiscal_year=fiscal_year,
         disclaimer_text=disclaimer_text,
 
         date_requested=data["date_requested"],
@@ -627,9 +644,9 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         budget_salaries=_round0(budget_salaries),
         actual_salaries=_round0(actual_salaries),
         turnover_12mo="",
-
-        curr_pp_worked_fte=pr["curr_pp_worked_fte"],
-        curr_pp_paid_fte=pr["curr_pp_paid_fte"],
+     
+        curr_pp_worked_fte=_round0(curr_pp_worked_fte),
+        curr_pp_paid_fte=_round0(curr_pp_paid_fte),
         curr_pp_ot_pct=pr["curr_pp_ot_pct"],
         curr_pp_act_vol=pr["curr_pp_act_vol"],
         curr_prod_index=pr["curr_prod_index"],
@@ -731,7 +748,7 @@ def build_pdf(ctx: PRCContext, out_dir: str) -> str:
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Operational Statistics", ParagraphStyle("sec", parent=styles["Heading4"], alignment=1)))
-    op_headers = ["BUD PP Vol YTD", "Act PP Vol YTD", "Current PP Bud Vol", "Bud PP Paid FTE's", "Act PP Paid FTE's", "Index YTD"]
+    op_headers = ["BUD PP Vol YTD ({ctx.fiscal_year})", "Act PP Vol YTD ({ctx.fiscal_year})", "Current PP Bud Vol", "Bud PP Paid FTE's", "Act PP Paid FTE's", "Index YTD"]
     op_values  = [ctx.bud_pp_vol_ytd, ctx.act_pp_vol_ytd, ctx.curr_pp_bud_vol, ctx.bud_pp_paid_fte, ctx.act_pp_paid_fte, ctx.index_ytd]
     t3 = Table([op_headers, op_values], colWidths=[1.3*inch]*6)
     t3.setStyle(TableStyle([
