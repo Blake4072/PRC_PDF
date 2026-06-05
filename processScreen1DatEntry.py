@@ -543,6 +543,11 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     fiscal_year = str(target_year)
 
+    cost_center = form_fields.get("cost_center")
+
+    if not cost_center:
+        raise RuntimeError("Missing cost_center")
+
     prod_df[COL_PAY_PERIOD] = pd.to_numeric(prod_df[COL_PAY_PERIOD], errors="coerce")
 
     agg_df = aggregate_prod(prod_df, target_year)
@@ -561,11 +566,6 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     if not header_month:
         raise RuntimeError("Invalid header_month")
-
-    cost_center = form_fields.get("cost_center")
-
-    if not cost_center:
-        raise RuntimeError("Missing cost_center")
 
     ops = gen_operational_stats(
         cost_center=cost_center,
@@ -599,9 +599,6 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     for k, v in ops.items():
         if v is None:
             raise RuntimeError(f"Null stat: {k}")
-
-
-    cost_center = str(form_fields.get("cost_center", "")).strip()
 
     data = copy_from_data_screen(form_fields)
     fac = extract_facility_name(data["cost_center"], data["facility"], cost_centers_df=cost_centers_df)
