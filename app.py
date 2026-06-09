@@ -58,6 +58,13 @@ from processScreen1DatEntry import process, build_pdf
 
 from dotenv import load_dotenv
 
+from processScreen1DatEntry import (
+    get_latest_completed_pp,
+    COL_COST_CENTER,
+    COL_PAY_PERIOD,
+    _normalize_cost_center
+)
+
 load_dotenv()
 
 
@@ -257,7 +264,7 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
         "cost_center_desc": str(row["cost_center_desc"]),
     }
 
-def validate_cost_center_complete(cost_center, eng, current_pp):
+def validate_cost_center_complete(cost_center, eng, current_pp, prod_df):
 
     cc = _normalize_cost_center(cost_center)
 
@@ -274,13 +281,19 @@ def validate_cost_center_complete(cost_center, eng, current_pp):
         WHERE Dept = :cc
     """
 
-    q_pp = """
-        SELECT 1
-        FROM [DecisionSupport].[dbo].[Productivity Data]
-        WHERE [Cost Center] = :cc
-          AND [Year] LIKE 'PROD%'
-          AND [Pay Period] = :pp
-    """
+    prod_df_filtered = prod_df.copy()
+
+    prod_df_filtered[COL_COST_CENTER] = prod_df_filtered[COL_COST_CENTER].apply(_normalize_cost_center)
+    prod_df_filtered[COL_PAY_PERIOD] = pd.to_numeric(prod_df_filtered[COL_PAY_PERIOD], errors="coerce")
+
+    match = prod_df_filtered[
+        (prod_df_filtered[COL_COST_CENTER] == cc) &
+        (prod_df_filtered[COL_PAY_PERIOD] == current_pp)
+    ]
+
+    if match.empty:
+        return False, f"No valid aggregated data for current pay period ({current_pp})"
+
 
     with eng.connect() as con:
         prod_exists = con.execute(text(q_prod), {"cc": cc}).fetchone()
@@ -292,9 +305,6 @@ def validate_cost_center_complete(cost_center, eng, current_pp):
 
     if not vol_exists:
         return False, "Cost center missing in Volume Description table"
-
-    if not pp_exists:
-        return False, f"No data for current pay period ({current_pp})"
 
     return True, None
 
@@ -371,8 +381,6 @@ def submit():
             "SELECT * FROM [DecisionSupport].[dbo].[PAYPERIODTABLE_];",
             con
         )
-
-    from processScreen1DatEntry import get_latest_completed_pp
 
     current_pp, _ = get_latest_completed_pp(payperiod_df)
     current_pp = int(current_pp)
