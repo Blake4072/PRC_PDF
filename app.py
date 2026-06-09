@@ -261,34 +261,31 @@ def validate_cost_center_complete(cost_center, eng, current_pp):
 
     cc = _normalize_cost_center(cost_center)
 
-    # --- 1: exists in PROD (any data) ---
     q_prod = """
         SELECT 1
         FROM [DecisionSupport].[dbo].[Productivity Data]
-        WHERE [Cost Center] = ?
+        WHERE [Cost Center] = :cc
           AND [Year] LIKE 'PROD%'
     """
 
-    # --- 2: exists in Volume ---
     q_vol = """
         SELECT 1
         FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]
-        WHERE Dept = ?
+        WHERE Dept = :cc
     """
 
-    # --- 3: exists in PROD for CURRENT PP ---
     q_pp = """
         SELECT 1
         FROM [DecisionSupport].[dbo].[Productivity Data]
-        WHERE [Cost Center] = ?
+        WHERE [Cost Center] = :cc
           AND [Year] LIKE 'PROD%'
-          AND [Pay Period] = ?
+          AND [Pay Period] = :pp
     """
 
     with eng.connect() as con:
-        prod_exists = con.execute(text(q_prod), (cc,)).fetchone()
-        vol_exists = con.execute(text(q_vol), (cc,)).fetchone()
-        pp_exists = con.execute(text(q_pp), (cc, current_pp)).fetchone()
+        prod_exists = con.execute(text(q_prod), {"cc": cc}).fetchone()
+        vol_exists = con.execute(text(q_vol), {"cc": cc}).fetchone()
+        pp_exists = con.execute(text(q_pp), {"cc": cc, "pp": current_pp}).fetchone()
 
     if not prod_exists:
         return False, "Cost center missing in Productivity Data"
@@ -300,7 +297,6 @@ def validate_cost_center_complete(cost_center, eng, current_pp):
         return False, f"No data for current pay period ({current_pp})"
 
     return True, None
-
 
 
 
@@ -377,7 +373,7 @@ def submit():
         )
 
     from processScreen1DatEntry import get_latest_completed_pp
-    
+
     current_pp, _ = get_latest_completed_pp(payperiod_df)
 
     form_fields = request.form.to_dict(flat=True)
