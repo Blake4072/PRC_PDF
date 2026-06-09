@@ -485,15 +485,19 @@ def review():
         volume_df = pd.read_sql("SELECT Dept, Stat_Desc FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]",con)
         salaries_df = pd.read_sql("SELECT * FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]",con)
 
-
-    ctx_dict = processor.process(
-        payload,
-        cost_centers_df=cost_centers_df,
-        prod_df=prod_df,
-        payperiod_df=payperiod_df,
-        volume_df=volume_df,
-        salaries_df=salaries_df
-    )
+    try:
+        ctx_dict = processor.process(
+            payload,
+            cost_centers_df=cost_centers_df,
+            prod_df=prod_df,
+            payperiod_df=payperiod_df,
+            volume_df=volume_df,
+            salaries_df=salaries_df
+        )
+    except RuntimeError as e:
+        flash(str(e), "error")
+        return redirect(url_for("index"))
+    
 
     return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
