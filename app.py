@@ -375,6 +375,7 @@ def submit():
     from processScreen1DatEntry import get_latest_completed_pp
 
     current_pp, _ = get_latest_completed_pp(payperiod_df)
+    current_pp = int(current_pp)
 
     form_fields = request.form.to_dict(flat=True)
     session["form_data"] = form_fields
