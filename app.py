@@ -368,6 +368,8 @@ def submit():
 
     #preload_all()
 
+    eng = _mssql_engine()
+
     form_fields = request.form.to_dict(flat=True)
     session["form_data"] = form_fields
 
@@ -390,7 +392,7 @@ def submit():
     form_fields["facility"] = info["facility_desc"]
 
     session_id = session["user_id"]
-    eng = _mssql_engine()
+   
 
     
     payload = form_fields.copy()
