@@ -104,7 +104,11 @@ class PRCContext:
     curr_pp_paid_fte: str
     curr_pp_ot_pct: str
     curr_pp_act_vol: str
-    curr_prod_index: str
+    curr_prod_index: str       
+    roll4_worked_fte: str
+    roll4_paid_fte: str
+    roll4_vol: str
+
 
 
 # =============================================================================
@@ -273,7 +277,7 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
 
     curr_row = curr_rows.iloc[0]
 
-    curr_pp_bud_vol = curr_row[COL_ACTUAL]
+    curr_pp_bud_vol = curr_row[COL_BUDGET]
 
     ytd_df = cc_df[
         cc_df[COL_PAY_PERIOD] <= pay_period
@@ -389,6 +393,76 @@ def compute_salary_metrics(cost_center, salaries_df):
     actual = act_df[COL_GL_VALUE].sum()
 
     return budget, actual
+
+def compute_current_pp_ot_pct(cost_center, pay_period, prod_df):
+
+    cc = _normalize_cost_center(cost_center)
+
+    df = prod_df.copy()
+
+    df[COL_COST_CENTER] = df[COL_COST_CENTER].apply(_normalize_cost_center)
+    df[COL_PAY_PERIOD] = pd.to_numeric(df[COL_PAY_PERIOD], errors="coerce")
+    df["Hours"] = pd.to_numeric(df["Hours"], errors="coerce").fillna(0)
+
+    df = df[
+        (df[COL_COST_CENTER] == cc) &
+        (df[COL_PAY_PERIOD] == pay_period)
+    ]
+
+    if df.empty:
+        return "0%"
+
+    # numerator = Paid hours
+    paid_hours = df[df["Paid/Worked"] == "P"]["Hours"].sum()
+
+    # denominator = Worked hours
+    worked_hours = df[df["Paid/Worked"] == "W"]["Hours"].sum()
+
+    if worked_hours == 0:
+        return "0%"
+
+    pct = (paid_hours / worked_hours) * 100
+
+    return f"{round(pct, 1)}%"
+
+
+def compute_current_pp_act_vol(cost_center, pay_period, agg_df):
+
+    cc = _normalize_cost_center(cost_center)
+
+    row = agg_df[
+        (agg_df[COL_COST_CENTER] == cc) &
+        (agg_df[COL_PAY_PERIOD] == pay_period)
+    ]
+
+    if row.empty:
+        return 0
+
+    return row.iloc[0][COL_ACTUAL]
+
+
+def compute_roll4_metrics(cost_center, pay_period, agg_df):
+
+    cc = _normalize_cost_center(cost_center)
+
+    df = agg_df[
+        agg_df[COL_COST_CENTER] == cc
+    ]
+
+    # last 4 PP including current
+    start_pp = max(1, pay_period - 3)
+
+    window = df[
+        (df[COL_PAY_PERIOD] >= start_pp) &
+        (df[COL_PAY_PERIOD] <= pay_period)
+    ]
+
+    roll4_worked = window[COL_WORKED_FTE].sum()
+    roll4_paid = window[COL_ACTUAL_FTE].sum()
+    roll4_vol = window[COL_ACTUAL].sum()
+
+    return roll4_worked, roll4_paid, roll4_vol
+
 
 
 # =============================================================================
@@ -595,6 +669,25 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         salaries_df
     )
 
+    curr_pp_ot_pct = compute_current_pp_ot_pct(
+        cost_center,
+        pay_period,
+        prod_df
+    )
+
+    curr_pp_act_vol = compute_current_pp_act_vol(
+        cost_center,
+        pay_period,
+        agg_df
+    )
+
+    roll4_worked, roll4_paid, roll4_vol = compute_roll4_metrics(
+        cost_center,
+        pay_period,
+        agg_df
+    )
+    
+
 
     for k, v in ops.items():
         if v is None:
@@ -644,9 +737,13 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
      
         curr_pp_worked_fte=_round0(curr_pp_worked_fte),
         curr_pp_paid_fte=_round0(curr_pp_paid_fte),
-        curr_pp_ot_pct=pr["curr_pp_ot_pct"],
-        curr_pp_act_vol=pr["curr_pp_act_vol"],
-        curr_prod_index=pr["curr_prod_index"],
+        curr_pp_ot_pct=curr_pp_ot_pct,
+        curr_pp_act_vol=_round0(curr_pp_act_vol),
+        curr_prod_index=pr["curr_prod_index"],        
+        roll4_worked_fte=_round0(roll4_worked),
+        roll4_paid_fte=_round0(roll4_paid),
+        roll4_vol=_round0(roll4_vol),
+
     )
 
 
