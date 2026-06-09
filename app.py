@@ -491,7 +491,7 @@ def review():
 
     with eng.connect() as con:
         cost_centers_df = pd.read_sql(query, con)
-        prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+        prod_df = pd.read_sql("""SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? AND [Year] LIKE 'PROD%'""",con,params=(payload["cost_center"],))
         payperiod_df=pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
         volume_df = pd.read_sql("SELECT Dept, Stat_Desc FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]",con)
         salaries_df = pd.read_sql("SELECT * FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]",con)
@@ -565,7 +565,7 @@ def genpdf_email():
 
         with eng.connect() as con:
             cost_centers_df = pd.read_sql(query, con)
-            prod_df=pd.read_sql("SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? ", con, params=(payload["cost_center"],))
+            prod_df = pd.read_sql("""SELECT * FROM [dbo].[Productivity Data] WHERE [Cost Center] = ? AND [Year] LIKE 'PROD%'""", con, params=(payload["cost_center"],))
             payperiod_df = pd.read_sql("SELECT * FROM [dbo].[PAYPERIODTABLE_];",con)
             volume_df = pd.read_sql("SELECT Dept, Stat_Desc FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]",con)
             salaries_df = pd.read_sql("SELECT * FROM [DecisionSupport].[dbo].[ProdTrackerSalaries_PRC]",con)
