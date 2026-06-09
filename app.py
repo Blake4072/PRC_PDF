@@ -281,18 +281,22 @@ def validate_cost_center_complete(cost_center, eng, current_pp, prod_df):
         WHERE Dept = :cc
     """
 
-    prod_df_filtered = prod_df.copy()
+    q_strict = """
+        SELECT 1
+        FROM [DecisionSupport].[dbo].[Productivity Data]
+        WHERE [Cost Center] = :cc
+        AND [Year] LIKE 'PROD%'
+        AND [Pay Period] = :pp
+    """
 
-    prod_df_filtered[COL_COST_CENTER] = prod_df_filtered[COL_COST_CENTER].apply(_normalize_cost_center)
-    prod_df_filtered[COL_PAY_PERIOD] = pd.to_numeric(prod_df_filtered[COL_PAY_PERIOD], errors="coerce")
+    with eng.connect() as con:
+        exact_match = con.execute(
+            text(q_strict),
+            {"cc": cc, "pp": current_pp}
+        ).fetchone()
 
-    match = prod_df_filtered[
-        (prod_df_filtered[COL_COST_CENTER] == cc) &
-        (prod_df_filtered[COL_PAY_PERIOD] == current_pp)
-    ]
-
-    if match.empty:
-        return False, f"No valid aggregated data for current pay period ({current_pp})"
+    if not exact_match:
+        return False, f"No data for current pay period ({current_pp})"
 
 
     with eng.connect() as con:
