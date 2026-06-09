@@ -369,6 +369,15 @@ def submit():
     #preload_all()
 
     eng = _mssql_engine()
+
+    with eng.connect() as con:
+        payperiod_df = pd.read_sql(
+            "SELECT * FROM [DecisionSupport].[dbo].[PAYPERIODTABLE_];",
+            con
+        )
+
+    from processScreen1DatEntry import get_latest_completed_pp
+    
     current_pp, _ = get_latest_completed_pp(payperiod_df)
 
     form_fields = request.form.to_dict(flat=True)
@@ -421,13 +430,7 @@ def submit():
             {"sid": session_id, "payload": payload_json},
         )
 
-    with eng.connect() as con:
-        payperiod_df = pd.read_sql(
-            "SELECT * FROM [DecisionSupport].[dbo].[PAYPERIODTABLE_];",
-            con
-        )
-
-    from processScreen1DatEntry import get_latest_completed_pp
+    
 
     return redirect(url_for("review"))
 
