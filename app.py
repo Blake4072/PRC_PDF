@@ -257,6 +257,51 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
         "cost_center_desc": str(row["cost_center_desc"]),
     }
 
+def validate_cost_center_complete(cost_center, eng, current_pp):
+
+    cc = _normalize_cost_center(cost_center)
+
+    # --- 1: exists in PROD (any data) ---
+    q_prod = """
+        SELECT 1
+        FROM [DecisionSupport].[dbo].[Productivity Data]
+        WHERE [Cost Center] = ?
+          AND [Year] LIKE 'PROD%'
+    """
+
+    # --- 2: exists in Volume ---
+    q_vol = """
+        SELECT 1
+        FROM [DecisionSupport].[dbo].[ProductivityStatsVolumeDescriptions_USE]
+        WHERE Dept = ?
+    """
+
+    # --- 3: exists in PROD for CURRENT PP ---
+    q_pp = """
+        SELECT 1
+        FROM [DecisionSupport].[dbo].[Productivity Data]
+        WHERE [Cost Center] = ?
+          AND [Year] LIKE 'PROD%'
+          AND [Pay Period] = ?
+    """
+
+    with eng.connect() as con:
+        prod_exists = con.execute(text(q_prod), (cc,)).fetchone()
+        vol_exists = con.execute(text(q_vol), (cc,)).fetchone()
+        pp_exists = con.execute(text(q_pp), (cc, current_pp)).fetchone()
+
+    if not prod_exists:
+        return False, "Cost center missing in Productivity Data"
+
+    if not vol_exists:
+        return False, "Cost center missing in Volume Description table"
+
+    if not pp_exists:
+        return False, f"No data for current pay period ({current_pp})"
+
+    return True, None
+
+
 
 
 
@@ -328,6 +373,16 @@ def submit():
 
     try:
         info = lookup_cost_center_or_raise(form_fields.get("cost_center", ""))
+
+        valid, msg = validate_cost_center_complete(
+            form_fields.get("cost_center", ""),
+            eng,
+            current_pp
+        )
+
+        if not valid:
+            flash(msg, "error")
+            return redirect(url_for("index"))
     except ValueError as e:
         flash(str(e), "error")
         return redirect(url_for("index"))
@@ -362,6 +417,16 @@ def submit():
             """),
             {"sid": session_id, "payload": payload_json},
         )
+
+    with eng.connect() as con:
+        payperiod_df = pd.read_sql(
+            "SELECT * FROM [DecisionSupport].[dbo].[PAYPERIODTABLE_];",
+            con
+        )
+
+    from processScreen1DatEntry import get_latest_completed_pp
+
+    current_pp, _ = get_latest_completed_pp(payperiod_df)
 
     return redirect(url_for("review"))
 
