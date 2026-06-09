@@ -264,7 +264,7 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
         "cost_center_desc": str(row["cost_center_desc"]),
     }
 
-def validate_cost_center_complete(cost_center, eng, current_pp, prod_df):
+def validate_cost_center_complete(cost_center, eng, current_pp,):
 
     cc = _normalize_cost_center(cost_center)
 
