@@ -369,6 +369,7 @@ def submit():
     #preload_all()
 
     eng = _mssql_engine()
+    current_pp, _ = get_latest_completed_pp(payperiod_df)
 
     form_fields = request.form.to_dict(flat=True)
     session["form_data"] = form_fields
@@ -427,8 +428,6 @@ def submit():
         )
 
     from processScreen1DatEntry import get_latest_completed_pp
-
-    current_pp, _ = get_latest_completed_pp(payperiod_df)
 
     return redirect(url_for("review"))
 
