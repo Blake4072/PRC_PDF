@@ -264,7 +264,7 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
         "cost_center_desc": str(row["cost_center_desc"]),
     }
 
-def validate_cost_center_complete(cost_center, eng, current_pp, prod_df):
+def validate_cost_center_complete(cost_center, eng, current_pp):
 
     cc = _normalize_cost_center(cost_center)
 
@@ -390,20 +390,6 @@ def submit():
 
     form_fields = request.form.to_dict(flat=True)
     session["form_data"] = form_fields
-
-    
-    with eng.connect() as con:
-        prod_df = pd.read_sql(
-            """
-            SELECT *
-            FROM [DecisionSupport].[dbo].[Productivity Data]
-            WHERE [Cost Center] = ?
-            AND [Year] LIKE 'PROD%'
-            """,
-            con,
-            params=(form_fields.get("cost_center", ""),)
-        )
-
 
     try:
         info = lookup_cost_center_or_raise(form_fields.get("cost_center", ""))
