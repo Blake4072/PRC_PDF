@@ -628,10 +628,19 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     cc_norm = _normalize_cost_center(cost_center)
 
-    curr_row = agg_df[
+    
+    matches = agg_df[
         (agg_df[COL_COST_CENTER] == cc_norm) &
         (agg_df[COL_PAY_PERIOD] == pay_period)
-    ].iloc[0]
+    ]
+
+    if matches.empty:
+        raise RuntimeError(
+            f"No aggregated data for CC {cost_center} at PP {pay_period}"
+        )
+
+    curr_row = matches.iloc[0]
+
 
     curr_pp_worked_fte = curr_row[COL_WORKED_FTE]
     curr_pp_paid_fte = curr_row[COL_ACTUAL_FTE]
