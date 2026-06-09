@@ -264,7 +264,7 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
         "cost_center_desc": str(row["cost_center_desc"]),
     }
 
-def validate_cost_center_complete(cost_center, eng, current_pp,):
+def validate_cost_center_complete(cost_center, eng, current_pp, prod_df):
 
     cc = _normalize_cost_center(cost_center)
 
@@ -412,7 +412,6 @@ def submit():
             form_fields.get("cost_center", ""),
             eng,
             current_pp,
-            prod_df,
         )
 
         if not valid:
