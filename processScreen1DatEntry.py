@@ -789,11 +789,11 @@ def build_pdf(ctx, out_dir):
     normal = ParagraphStyle("n", parent=styles["Normal"], fontSize=8.5, leading=10)
     header = ParagraphStyle("h", parent=styles["Normal"], fontSize=8.5, alignment=1)
     title = ParagraphStyle("t", parent=styles["Title"], fontSize=12, alignment=1)
-
-    def P(x):
+    
+    def p_cell(x):
         return Paragraph(str(x), normal)
 
-    def H(x):
+    def h_cell(x):
         return Paragraph(str(x), header)
 
     yellow = colors.Color(1, 0.95, 0.75)
@@ -812,8 +812,8 @@ def build_pdf(ctx, out_dir):
     # Top info table
     # ----------------------------------------------------------------------------
     t1 = Table([
-        [H("Date Requested"), H("Cost Center"), H("Facility"), H("Cost Center Name"), H("Requisition(s)")],
-        [P(ctx.date_requested), P(ctx.cost_center), P(ctx.facility), P(ctx.cost_center_name), P(ctx.requisitions)]
+        [h_cell("Date Requested"), h_cell("Cost Center"), h_cell("Facility"), h_cell("Cost Center Name"), h_cell("Requisition(s)")],
+        [p_cell(ctx.date_requested), p_cell(ctx.cost_center), p_cell(ctx.facility), p_cell(ctx.cost_center_name), p_cell(ctx.requisitions)]
     ], colWidths=[1.2*inch,1.2*inch,1.2*inch,2.2*inch,2.0*inch])
 
     t1.setStyle([
@@ -831,19 +831,19 @@ def build_pdf(ctx, out_dir):
     # Operational table
     # ----------------------------------------------------------------------------
     t2 = Table([
-        [H(f"BUD PP Vol YTD ({ctx.fiscal_year})"),
-         H(f"Act PP Vol YTD ({ctx.fiscal_year})"),
-         H("Current PP Bud Vol"),
-         H("Bud PP Paid FTE's"),
-         H("Act PP Paid FTE's"),
-         H("Index YTD")],
+        [h_cell(f"BUD PP Vol YTD ({ctx.fiscal_year})"),
+         h_cell(f"Act PP Vol YTD ({ctx.fiscal_year})"),
+         h_cell("Current PP Bud Vol"),
+         h_cell("Bud PP Paid FTE's"),
+         h_cell("Act PP Paid FTE's"),
+         h_cell("Index YTD")],
 
-        [P(ctx.bud_pp_vol_ytd),
-         P(ctx.act_pp_vol_ytd),
-         P(ctx.curr_pp_bud_vol),
-         P(ctx.bud_pp_paid_fte),
-         P(ctx.act_pp_paid_fte),
-         P(ctx.index_ytd)]
+        [p_cell(ctx.bud_pp_vol_ytd),
+         p_cell(ctx.act_pp_vol_ytd),
+         p_cell(ctx.curr_pp_bud_vol),
+         p_cell(ctx.bud_pp_paid_fte),
+         p_cell(ctx.act_pp_paid_fte),
+         p_cell(ctx.index_ytd)]
     ])
 
     t2.setStyle([
@@ -861,17 +861,17 @@ def build_pdf(ctx, out_dir):
     # Productivity CURRENT row
     # ----------------------------------------------------------------------------
     t3 = Table([
-        [H("Current PP Worked FTE's"),
-         H("Current PP Paid FTE's"),
-         H("Current PP OT%"),
-         H("Current PP Act Vol"),
-         H("Current Prod Index")],
+        [h_cell("Current PP Worked FTE's"),
+         h_cell("Current PP Paid FTE's"),
+         h_cell("Current PP OT%"),
+         h_cell("Current PP Act Vol"),
+         h_cell("Current Prod Index")],
 
-        [P(ctx.curr_pp_worked_fte),
-         P(ctx.curr_pp_paid_fte),
-         P(ctx.curr_pp_ot_pct),
-         P(ctx.curr_pp_act_vol),
-         P(ctx.curr_prod_index)]
+        [p_cell(ctx.curr_pp_worked_fte),
+         p_cell(ctx.curr_pp_paid_fte),
+         p_cell(ctx.curr_pp_ot_pct),
+         p_cell(ctx.curr_pp_act_vol),
+         p_cell(ctx.curr_prod_index)]
     ])
 
     t3.setStyle([
@@ -888,13 +888,13 @@ def build_pdf(ctx, out_dir):
     # ✅ NEW ROLL 4 ROW (your request)
     # ----------------------------------------------------------------------------
     t4 = Table([
-        [H("Roll 4 Worked FTE's"),
-         H("Roll 4 Paid FTE's"),
-         H("Vol Roll 4 PP")],
+        [h_cell("Roll 4 Worked FTE's"),
+         h_cell("Roll 4 Paid FTE's"),
+         h_cell("Vol Roll 4 PP")],
 
-        [P(ctx.roll4_worked_fte),
-         P(ctx.roll4_paid_fte),
-         P(ctx.roll4_vol)]
+        [p_cell(ctx.roll4_worked_fte),
+         p_cell(ctx.roll4_paid_fte),
+         p_cell(ctx.roll4_vol)]
     ])
 
     t4.setStyle([
