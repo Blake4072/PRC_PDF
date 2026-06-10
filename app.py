@@ -1,42 +1,7 @@
-r"""
-app.py
-
-PURPOSE
--------
-This module defines:
-  - A Flask web application (routes: "/", "/submit", "/review", "/genpdf_email", "/clear_all")
-
-RUN MODES
----------
-(A) DEVELOPMENT:
-    python app.py
-    -> listens on port 5000
-
-(B) PRODUCTION (recommended):
-    python run_waitress.py
-    -> calls app.startup() FIRST (blocking preload)
-    -> then Waitress listens on port 8000
-
-NEW UX FLOW (UPDATED)
----------------------
-Screen 1 ("/") -> Submit (POST "/submit") -> Protected Review (GET "/review")
-
-Protected Review page shows the same information the PDF would contain (read-only),
-and provides two buttons:
-  - GenPDF & Email (POST "/genpdf_email")
-  - Clear (POST "/clear_all") -> returns to first screen
-
-CRITICAL REQUIREMENT
---------------------
-Cost Center validation must happen FIRST in /submit.
-If cost center is invalid, redirect back to "/" with an error message.
-"""
-
 import os
 import logging
-import threading
 import time
-from datetime import timedelta, date, datetime
+from datetime import timedelta, date
 from zoneinfo import ZoneInfo
 import json
 
@@ -51,17 +16,14 @@ from flask import (
     url_for,
     session,
     flash,
-    send_file,
 )
 
-from processScreen1DatEntry import process, build_pdf
+from processScreen1DatEntry import build_pdf
 
 from dotenv import load_dotenv
 
 from processScreen1DatEntry import (
     get_latest_completed_pp,
-    COL_COST_CENTER,
-    COL_PAY_PERIOD,
     _normalize_cost_center
 )
 
@@ -91,7 +53,7 @@ def step(name, fn):
         raise
 
 # ---------------------------------------------------------------------
-# Flask setup
+# Flask setup && Sentry hook
 # ---------------------------------------------------------------------
 
 import sentry_sdk
@@ -127,7 +89,7 @@ app.secret_key = os.environ.get("PRC_FLASK_SECRET_KEY", "change-this-secret-key"
 app.permanent_session_lifetime = timedelta(hours=8)
 
 # ---------------------------------------------------------------------
-# Environment / Config (can be overridden via env vars)
+# Environment / Config
 # ---------------------------------------------------------------------
 
 FABRIC_SERVER = os.environ.get("PRC_FABRIC_SERVER")
@@ -150,13 +112,9 @@ REVIEW_TEMPLATE = "review.html"
 # ---------------------------------------------------------------------
 # Required Environment Variables (Email)
 # ---------------------------------------------------------------------
-# edit Blake Bozarth 5/4/26 config placeholders for server based mailing
-
-
 PRC_SMTP_HOST = os.environ.get("PRC_SMTP_HOST",)
 PRC_SMTP_PORT = int(os.environ.get("PRC_SMTP_PORT"))
 PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM",)
-
 
 # ---------------------------------------------------------------------
 # In-memory cache shared across users / requests
@@ -166,6 +124,17 @@ PRC_EMAIL_FROM = os.environ.get("PRC_EMAIL_FROM",)
 # Helpers for normalization and column picking
 # ---------------------------------------------------------------------
 def _normalize_cost_center(x: str) -> str:
+    
+    """
+    Normalize Cost Center key
+    IN: raw cost center (string/number)
+    OUT: uppercase normalized string
+    RULES:
+      - trim whitespace
+      - remove trailing ".0"
+      - strip leading zeros
+    """
+
     s = str(x).strip()
     if s.endswith(".0"):
         s = s[:-2]
@@ -176,18 +145,21 @@ def _normalize_cost_center(x: str) -> str:
 # ---------------------------------------------------------------------
 # Dataset loader functions
 # ---------------------------------------------------------------------
-
-# trusted SQL connection WILL NOT WORK ON SERVER
-# needs a user + pass auth layer that executes within the docker image where the source code is "hosted"
 def _mssql_engine():
+    
+    """
+    Create MSSQL connection engine
+    IN: environment variables
+    OUT: SQLAlchemy engine
+    GOAL: centralized DB connection
+    """
+
     driver = os.environ.get("PRC_MSSQL_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
     server = os.environ.get("PRC_MSSQL_SERVER", "QYVMSTNDPDSQL02")
     database = os.environ.get("PRC_MSSQL_DB", "DecisionSupport")
     user = os.environ.get("PRC_MSSQL_USER")
     password = os.environ.get("PRC_MSSQL_PASSWORD")
 
-
-    
     url = (
              f"mssql+pyodbc://{user}:{password}@{server}/{database}"
              f"?driver={driver.replace(' ', '+')}"
@@ -195,24 +167,37 @@ def _mssql_engine():
              f"&TrustServerCertificate=yes"
          )
 
-
     return create_engine(url, fast_executemany=True, pool_pre_ping=True, pool_size=5, max_overflow=10, future=True,)
 
-
-
 def load_mssql_table() -> pd.DataFrame:
+    
+    """
+    Load full productivity dataset
+    IN: none
+    OUT: DataFrame (Productivity Data)
+    GOAL: ad-hoc dataset inspection (not main pipeline)
+    """
+
     eng = _mssql_engine()
     with eng.connect() as con:
         return pd.read_sql("SELECT * FROM [dbo].[Productivity Data];", con)
 
 # ---------------------------------------------------------------------
-# Master preload/refresh functions
-# ---------------------------------------------------------------------
-
-# ---------------------------------------------------------------------
 # Session helper
 # ---------------------------------------------------------------------
 def ensure_user_session():
+    
+    """
+    Initialize session structure
+    IN: Flask session
+    OUT: session mutated
+    GUARANTEES:
+      - user_id exists
+      - form_data exists
+      - prc_ctx exists
+      - pdf_path exists
+    """
+
     session.permanent = True
     if "user_id" not in session:
         import uuid
@@ -221,20 +206,26 @@ def ensure_user_session():
     if "form_data" not in session:
         session["form_data"] = {}
 
-    # Review context dict (stored after submit)
     if "prc_ctx" not in session:
         session["prc_ctx"] = None
 
-    # last generated pdf path (optional)
     if "pdf_path" not in session:
         session["pdf_path"] = None
 
 # ---------------------------------------------------------------------
-# Cost Center validation FIRST (uses preloaded cache)
+# Cost Center validation 
 # ---------------------------------------------------------------------
 
-#******************************************************edit Blake Bozarth 4/29 (facility is now derived from the authoritative cost‑center lookup instead of user input; cost center is the unique key and facility is a dependent attribute.)
 def lookup_cost_center_or_raise(cost_center: str) -> dict:
+    
+    """
+    Validate cost center via authoritative table
+    IN: cost_center (string)
+    OUT: {facility_desc, cost_center_desc}
+    FAIL: raises ValueError if not found
+    DATA SOURCE: ProdTrackerSalaries_PRC
+    """
+
     
     cc = _normalize_cost_center(cost_center)
 
@@ -265,6 +256,20 @@ def lookup_cost_center_or_raise(cost_center: str) -> dict:
     }
 
 def validate_cost_center_complete(cost_center, eng, current_pp):
+    
+    """
+    Full cost center validation gate
+    IN: cost_center, DB engine, current_pp
+    OUT: (bool, error_message)
+
+    ENFORCES:
+      1. exists in PROD dataset
+      2. exists in volume mapping table
+      3. has row for (Cost Center, Pay Period)
+
+    FAIL: returns (False, reason)
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -311,26 +316,25 @@ def validate_cost_center_complete(cost_center, eng, current_pp):
 
     return True, None
 
-
-
-
-
-
-
 # ---------------------------------------------------------------------
-# Preload orchestration (synchronous startup)
+# Startup
 # ---------------------------------------------------------------------
 
 def startup():
     startup_log.info("STARTUP: entered")
-    #preload_all()
-    #_validate_all_datasets_or_raise()
     os.makedirs(OUTPUT_PDF_DIR, exist_ok=True)
     startup_log.info("STARTUP: complete")
 
-#Email dropdown helpers #############################
 
 def load_known_emails(path=os.path.join("data", "emails.csv")):
+    
+    """
+    Load persisted email list
+    IN: file path
+    OUT: sorted unique email list
+    GOAL: populate UI dropdown
+    """
+
     if not os.path.exists(path):
         return []
 
@@ -341,6 +345,14 @@ def load_known_emails(path=os.path.join("data", "emails.csv")):
     
 
 def persist_email(email, path=os.path.join("data", "emails.csv")):
+    
+    """
+    Append email to persistence store
+    IN: email string
+    OUT: file write (if new)
+    GOAL: maintain dropdown list
+    """
+
     email = email.strip().lower()
     if not email:
         return
@@ -355,13 +367,24 @@ def persist_email(email, path=os.path.join("data", "emails.csv")):
     if email not in existing:
         with open(path, "a", encoding="utf-8") as f:
             f.write(email + "\n")
-###############################################################
+
 # ---------------------------------------------------------------------
 # ROUTES    
 # ---------------------------------------------------------------------
-#edit Blake Bozarth 5/4/26 Active Directory emails get passed to webpage for dropdown
 @app.route("/", methods=["GET"])
 def index():
+    
+    """
+    Render input form
+    IN: session
+    OUT: form.html
+
+    BEHAVIOR:
+      - preload session data
+      - set default date
+      - provide known emails
+    """
+
     ensure_user_session()
     data = session.get("form_data", {})
     emails = load_known_emails()
@@ -373,6 +396,23 @@ def index():
 
 @app.post("/submit")
 def submit():
+    
+    """
+    Primary input handler
+    IN: form POST
+    OUT: redirect
+
+    FLOW:
+      1. load payperiod table
+      2. compute current_pp
+      3. validate cost center (lookup + strict check)
+      4. persist payload to DB
+      5. redirect to review
+
+    FAIL:
+      - invalid CC → redirect to form with flash
+    """
+
     ensure_user_session()
 
     #preload_all()
@@ -444,6 +484,28 @@ def submit():
 
 @app.get("/review")
 def review():
+    
+    """
+    Protected review render
+    IN: session_id
+    OUT: review.html
+
+    FLOW:
+      1. load payload from DB
+      2. load all required datasets:
+         - cost_centers_df
+         - prod_df (PROD only)
+         - payperiod_df
+         - volume_df
+         - salaries_df
+      3. call processor.process()
+      4. render ctx
+
+    FAIL:
+      - no session data → redirect
+      - processing mismatch → redirect with error
+    """
+
     ensure_user_session()
 
     session_id = session["user_id"]
@@ -464,10 +526,7 @@ def review():
     payload = json.loads(row[0])
 
     import processScreen1DatEntry as processor
-    from processScreen1DatEntry import gen_operational_stats
 
-    # authoritative lookup table
-    
     query = """
         SELECT
             [Cost_Center] AS [Cost Center],
@@ -501,15 +560,29 @@ def review():
 
     return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
-
-# edit Blake Bozarth 5/4/26 pulls the data object --> builds pdf from it --> attempts email
-
 from flask import redirect, url_for, flash, session
-import smtplib
-#from emailer import send_prc_pdf
 
 @app.post("/genpdf_email")
 def genpdf_email():
+    
+    """Generate PDF and email
+    IN: session_id
+    OUT: review.html
+
+    FLOW:
+      1. reload payload from DB
+      2. rebuild datasets + context
+      3. build PDF
+      4. persist email
+      5. send SMTP email (optional)
+
+    FAIL:
+      - DB read failure
+      - context failure
+      - PDF failure
+      - SMTP failure
+    """
+
     log.error("GENPDF: ENTRYPOINT")
 
     ensure_user_session()
@@ -544,7 +617,7 @@ def genpdf_email():
     # ---- REBUILD CONTEXT ----------------------------------------------
     try:
         import processScreen1DatEntry as processor
-        from processScreen1DatEntry import gen_operational_stats, PRCContext
+        from processScreen1DatEntry import PRCContext
 
         query = """
             SELECT
@@ -616,32 +689,18 @@ def genpdf_email():
     log.error("GENPDF: EXIT normal")
     return render_template(REVIEW_TEMPLATE, ctx=ctx_dict)
 
-
-''' (old pdf generation + save to local data path)
-    import processScreen1DatEntry as processor
-    from processScreen1DatEntry import PRCContext
-
-    ctx = PRCContext(**ctx_dict)
-    pdf_path = processor.build_pdf(ctx, out_dir=OUTPUT_PDF_DIR)
-
-    session["pdf_path"] = pdf_path
-    session.modified = True
-
-    # TODO: hook in real email sender
-    # import SendEmailPDF
-    # SendEmailPDF.send(pdf_path, ctx.email_to)
-
-    log.info("Generated PDF: %s", pdf_path)
-    log.info("Email placeholder: would send to %s", ctx.email_to)
-    flash(f"Generated PDF and emailed to: {ctx.email_to}", "success")
-
-    # Return to first screen (your request)
-    return redirect(url_for("index"))
-'''
-
-
 @app.post("/clear_all")
 def clear_all():
+    
+    """
+    Reset session state
+    IN: session
+    OUT: redirect to index
+
+    EFFECT:
+      clears all stored user data
+    """
+
     ensure_user_session()
     session["form_data"] = {}
     session["prc_ctx"] = None
@@ -649,7 +708,6 @@ def clear_all():
     session.modified = True
     return redirect(url_for("index"))
 
-################################## edit by Blake Bozarth 4/29/26 lines: ######################################
 
 #------------------------------------------
 #Email Helper
@@ -675,64 +733,6 @@ def send_via_smtp(recipient_email, pdf_path):
 
     with smtplib.SMTP(PRC_SMTP_HOST, PRC_SMTP_PORT) as smtp:
         smtp.send_message(msg)
-
-
-# --------------------------------------------------
-# TEMPORARY CONCURRENCY TEST CONTEXT (DEV ONLY)
-# --------------------------------------------------
-
-
-@app.post("/_test_genpdf")
-def _test_genpdf():
-    ensure_user_session()
-    session["prc_ctx"] = _FAKE_PRC_CTX.copy()
-    return genpdf_email()
-
-
-_FAKE_PRC_CTX = {
-    "header_month": "May 2026",
-    "pay_period": "10",
-    "disclaimer_text": "TEST CONTEXT – NOT REAL DATA",
-
-    "date_requested": "2026-05-11",
-    "cost_center": "10101",
-    "facility": "BLESSING HOSPITAL",
-    "cost_center_name": "Nursing Administration",
-    "requisitions": "1",
-
-    "position_requested": "RN",
-    "position_title": "Registered Nurse",
-    "open_fte": "0.5",
-    "posted_fte": "0.0",
-    "total_requested_fte": "0.5",
-    "email_to": "test@example.com",
-
-    "q1_workflow_change": "No",
-    "q2_replacement_detail": "N/A",
-    "q3_absorb_work": "No",
-    "q4_skillset": "Clinical",
-    "q5_similar_roles": "Yes",
-    "q6_part_time": "Yes",
-
-    "bud_pp_vol_ytd": "100",
-    "act_pp_vol_ytd": "95",
-    "curr_pp_bud_vol": "10",
-    "bud_pp_paid_fte": "1.2",
-    "act_pp_paid_fte": "1.4",
-    "index_ytd": "0.95",
-    "volume_description": "TEST VOLUME",
-    "budget_salaries": "120000",
-    "actual_salaries": "118500",
-    "turnover_12mo": "5%",
-
-    "curr_pp_worked_fte": "1.4",
-    "curr_pp_paid_fte": "1.3",
-    "curr_pp_ot_pct": "2%",
-    "curr_pp_act_vol": "9",
-    "curr_prod_index": "0.9",
-}
-
-
 
 # ---------------------------------------------------------------------
 # DEV ENTRYPOINT ONLY (python app.py)
