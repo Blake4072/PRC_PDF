@@ -772,18 +772,19 @@ def build_pdf(ctx, out_dir):
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=letter,
-        leftMargin=0.5*inch,
-        rightMargin=0.5*inch,
-        topMargin=0.4*inch,
-        bottomMargin=0.4*inch,
+        leftMargin=0.35*inch,
+        rightMargin=0.35*inch,
+        topMargin=0.3*inch,
+        bottomMargin=0.3*inch,
+        allowSplitting=1
     )
 
     styles = getSampleStyleSheet()
 
-    normal = ParagraphStyle("normal", parent=styles["Normal"], fontSize=8.5, leading=10)
-    header = ParagraphStyle("header", parent=styles["Normal"], alignment=1, fontSize=8.5)
-    title  = ParagraphStyle("title", parent=styles["Title"], fontSize=12, alignment=1)
-    qstyle = ParagraphStyle("q", parent=styles["Normal"], fontSize=9, leading=11)
+    normal = ParagraphStyle("normal", parent=styles["Normal"], fontSize=7.5, leading=9)
+    header = ParagraphStyle("header", parent=styles["Normal"], fontSize=7.5, alignment=1)
+    title  = ParagraphStyle("title", parent=styles["Title"], fontSize=11, alignment=1)
+    qstyle = ParagraphStyle("q", parent=styles["Normal"], fontSize=8, leading=9)
 
     def p_cell(x):
         return Paragraph(str(x).replace("\n", "<br/>"), normal)
@@ -796,25 +797,25 @@ def build_pdf(ctx, out_dir):
 
     story = []
 
-    # ✅ TITLE (fixed)
+    # ------------------------------------------------------------------
+    # TITLE
+    # ------------------------------------------------------------------
     story.append(Paragraph(
         f"Position Review Committee Business Case as of {ctx.header_month} & Pay Period {ctx.pay_period}",
         title
     ))
 
+    story.append(Spacer(1, 5))
+
+    # ------------------------------------------------------------------
+    # DISCLAIMER
+    # ------------------------------------------------------------------
+    story.append(Paragraph(ctx.disclaimer_text.replace("\n", "<br/>"), normal))
     story.append(Spacer(1, 6))
 
-    # ✅ DISCLAIMER (RESTORED)
-    story.append(Paragraph(
-        ctx.disclaimer_text.replace("\n", "<br/>"),
-        normal
-    ))
-
-    story.append(Spacer(1, 10))
-
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # TOP TABLE
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     t1 = Table([
         [
             h_cell(LBL_DATE_REQUESTED),
@@ -840,11 +841,11 @@ def build_pdf(ctx, out_dir):
     ])
 
     story.append(t1)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
-    # ----------------------------------------------------------------------------
-    # POSITION TABLE (RESTORED)
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # POSITION TABLE
+    # ------------------------------------------------------------------
     t2 = Table([
         [
             h_cell("Position Requested"),
@@ -872,12 +873,13 @@ def build_pdf(ctx, out_dir):
     ])
 
     story.append(t2)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
 
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # OPERATIONAL
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     story.append(Paragraph("Operational Statistics", title))
+    story.append(Spacer(1, 3))
 
     t3 = Table([
         [
@@ -906,7 +908,7 @@ def build_pdf(ctx, out_dir):
     ])
 
     story.append(t3)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 4))
 
     t4 = Table([
         [
@@ -926,17 +928,19 @@ def build_pdf(ctx, out_dir):
     t4.setStyle([
         ("BACKGROUND",(0,0),(-1,0),yellow),
         ("BACKGROUND",(0,1),(-1,1),gray),
+        ("BOX",(0,0),(-1,-1),0.8,colors.black),
+        ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
     ])
 
     story.append(t4)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
 
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # PRODUCTIVITY
-    # ----------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     story.append(Paragraph("Productivity Statistics", title))
+    story.append(Spacer(1, 3))
 
-    # ✅ current row
     t5 = Table([
         [
             h_cell("Current PP Worked FTE's"),
@@ -954,14 +958,22 @@ def build_pdf(ctx, out_dir):
         ]
     ])
 
-    story.append(t5)
+    t5.setStyle([
+        ("BACKGROUND",(0,0),(-1,0),yellow),
+        ("BACKGROUND",(0,1),(-1,1),gray),
+        ("BOX",(0,0),(-1,-1),0.8,colors.black),
+        ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
+    ])
 
-    # ✅ NEW ROLL 4 ROW (added)
+    story.append(t5)
+    story.append(Spacer(1, 4))
+
+    # ✅ ROLL 4 ROW
     t6 = Table([
         [
             h_cell("Roll 4 Worked FTE's"),
             h_cell("Roll 4 Paid FTE's"),
-            h_cell("Vol Roll 4 PP"),
+            h_cell("Vol Roll 4 PP")
         ],
         [
             p_cell(ctx.roll4_worked_fte),
@@ -970,36 +982,43 @@ def build_pdf(ctx, out_dir):
         ]
     ])
 
-    story.append(Spacer(1, 6))
-    story.append(t6)
-    story.append(Spacer(1, 12))
+    t6.setStyle([
+        ("BACKGROUND",(0,0),(-1,0),yellow),
+        ("BACKGROUND",(0,1),(-1,1),gray),
+        ("BOX",(0,0),(-1,-1),0.8,colors.black),
+        ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
+    ])
 
-    # ----------------------------------------------------------------------------
-    # QUESTIONS (RESTORED)
-    # ----------------------------------------------------------------------------
+    story.append(t6)
+    story.append(Spacer(1, 6))
+
+    # ------------------------------------------------------------------
+    # QUESTIONS
+    # ------------------------------------------------------------------
     def q_block(n, text, answer):
         story.append(Paragraph(f"<b>{n}. {text}</b>", qstyle))
         story.append(Spacer(1, 2))
 
-        table = Table([
-            [p_cell(answer if answer else " ")]
-        ], colWidths=[7.5 * inch])
+        table = Table(
+            [[p_cell(answer if answer else " ")]],
+            colWidths=[7.3 * inch]
+        )
 
         table.setStyle([
             ("BOX",(0,0),(-1,-1),0.8,colors.black),
             ("VALIGN",(0,0),(-1,-1),"TOP"),
-            ("BOTTOMPADDING",(0,0),(-1,-1),18),
+            ("BOTTOMPADDING",(0,0),(-1,-1),10),
         ])
 
         story.append(table)
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 5))
 
     q_block(1, "If position(s) were not filled, how would the workflow change?", ctx.q1_workflow_change)
-    q_block(2, "If this is a replacement request...", ctx.q2_replacement_detail)
-    q_block(3, "What current positions...", ctx.q3_absorb_work)
-    q_block(4, "Is there a different skill set...", ctx.q4_skillset)
-    q_block(5, "Are there other roles...", ctx.q5_similar_roles)
-    q_block(6, "If a full-time position...", ctx.q6_part_time)
+    q_block(2, "If this is a replacement request, who left the role, where did they go, why did they leave and what efforts were made to retain them?", ctx.q2_replacement_detail)
+    q_block(3, "What current positions may be able to absorb the work? Can technology replace or reduce any of the work functions?", ctx.q3_absorb_work)
+    q_block(4, "Is there a different skill set that is needed?", ctx.q4_skillset)
+    q_block(5, "Are there other roles within the organization that perform similar functions?", ctx.q5_similar_roles)
+    q_block(6, "If a full-time position is being requested, could the work process be modified to be reduced to a part-time position?", ctx.q6_part_time)
 
     doc.build(story)
 
