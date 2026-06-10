@@ -1,15 +1,7 @@
 """
-processScreen1DatEntry.py
-
-Review-page workflow + cost center lookup support.
-
-- process() returns a JSON-serializable context dict for rendering review.html
-- build_pdf(ctx, out_dir) builds the PDF when user clicks GenPDF&Email
-
-Facility and Cost Center Name are derived from the preloaded cost center lookup
-dataframe passed from app.py (the Prod Tracker Salaries CSV loaded in _CACHE["cost_centers"]).
+Pipeline:
+raw inputs → normalize → aggregate → compute metrics → build_context → render/pdf
 """
-
 import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -22,7 +14,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, Paragraph, Spacer
 from flask import session
 
 # column constants 
@@ -41,14 +33,8 @@ COL_SAL_YEAR = "Year"
 COL_MONTH = "Month_Number"
 COL_GL_VALUE = "GL_Month_Value"
 COL_WORKED_FTE = "Worked FTE's"
-
-
-
-#Column Value Prefixes
 YEAR_PREFIX_FLEX = "FLEX"
 YEAR_PREFIX_ACTUAL = "ACTUAL"
-
-# UI label constants
 LBL_COST_CENTER = "Cost Center"
 LBL_FACILITY = "Facility"
 LBL_COST_CENTER_NAME = "Cost Center Name"
@@ -61,6 +47,17 @@ LBL_REQUISITIONS = "Requisition(s)"
 # =============================================================================
 @dataclass
 class PRCContext:
+    
+    """
+    UI + PDF data contract
+    IN: computed values from build_context
+    OUT: strongly-typed object
+    GOAL: single source of truth for rendering layer
+    GUARANTEE:
+      - all fields are present
+      - all numeric outputs pre-formatted
+    """
+
     header_month: str
     pay_period: str
     fiscal_year: str
@@ -87,7 +84,6 @@ class PRCContext:
     q5_similar_roles: str
     q6_part_time: str
 
-    # Operational stats (dummy now)
     bud_pp_vol_ytd: str
     act_pp_vol_ytd: str
     curr_pp_bud_vol: str
@@ -99,7 +95,6 @@ class PRCContext:
     actual_salaries: str
     turnover_12mo: str
 
-    # Productivity stats (dummy now)
     curr_pp_worked_fte: str
     curr_pp_paid_fte: str
     curr_pp_ot_pct: str
@@ -112,7 +107,7 @@ class PRCContext:
 
 
 # =============================================================================
-# Normalization helper (match app.py behavior)
+# Normalization helper 
 # =============================================================================
 def _normalize_cost_center(x: str) -> str:
     s = str(x).strip()
@@ -127,22 +122,33 @@ def _normalize_cost_center(x: str) -> str:
 # =============================================================================
 
 def _round0(x):
+    
+    """
+    Normalize numeric output
+    IN: numeric or string
+    OUT: string (rounded integer)
+    FALLBACK: returns input as string on failure
+    GOAL: ensure UI-safe numeric formatting
+    """
+
     try:
         return str(int(round(float(x), 0)))
     except Exception:
         return str(x)
 
-# =============================================================================
-# Step 1: SetHeaderMonth
-# =============================================================================
-def set_header_month() -> str:
-    return datetime.now().strftime("%B %Y")
-
 
 # =============================================================================
-# Step 2: SetDisclaimerText
+# SetDisclaimerText
 # =============================================================================
 def set_disclaimer_text() -> str:
+    
+    """
+    Static disclaimer generator
+    IN: none
+    OUT: disclaimer text string
+    GOAL: provide consistent legal/approval messaging
+    """
+
     return (
         "For consideration at the next Position Review Committee meeting, this form must be completed and "
         "returned to Janet Hinds by Friday at 5pm, along with all the required approvals in Hiring Manager.\n\n"
@@ -152,19 +158,21 @@ def set_disclaimer_text() -> str:
         "in the order that this form was received."
     )
 
-
 # =============================================================================
-# Step 3: SetHeaderPayPeriod
-# =============================================================================
-def set_header_pay_period() -> str:
-    # TODO later: derive from pay period table and requested date
-    return "18"
-
-
-# =============================================================================
-# Step 4: CopyFromDataScreen
+# CopyFromDataScreen
 # =============================================================================
 def copy_from_data_screen(form_fields: Dict[str, Any]) -> Dict[str, str]:
+    
+    """
+    Extract user input payload
+    IN: raw form_fields
+    OUT: cleaned field dict
+    RULES:
+      - trim all values
+      - default empty string
+    GOAL: normalize UI input for downstream processing
+    """
+
     def g(key: str) -> str:
         return str(form_fields.get(key, "")).strip()
 
@@ -189,20 +197,24 @@ def copy_from_data_screen(form_fields: Dict[str, Any]) -> Dict[str, str]:
 
 
 # =============================================================================
-# Step 5: ExtractFacilityName (lookup in preloaded cost center table)
+# ExtractFacilityName
 # =============================================================================
-def extract_facility_name(
-    cost_center: str,
-    facility_from_screen: str,
-    cost_centers_df: Optional[pd.DataFrame] = None,
-) -> Dict[str, str]:
+def extract_facility_name(cost_center: str,facility_from_screen: str,cost_centers_df: Optional[pd.DataFrame] = None,) -> Dict[str, str]:
+   
     """
-    Returns:
-      facility         = Facility Desc
-      cost_center_name = Cost Center Desc
+    Resolve facility + CC description
+    IN: cost_center, lookup table
+    OUT: {facility, cost_center_name}
 
-    If missing or not found => ValueError.
+    SOURCE: ProdTrackerSalaries_PRC
+
+    VALIDATION:
+      - table must exist
+      - normalized match must exist
+
+    FAIL: ValueError
     """
+
     cost_centers_df["_CC_NORM"] = cost_centers_df[COL_COST_CENTER].apply(_normalize_cost_center)
 
     _ = facility_from_screen  # facility is derived from lookup now
@@ -227,6 +239,18 @@ def extract_facility_name(
 
 
 def extract_volume_description(cost_center: str, volume_df: pd.DataFrame) -> str:
+    
+    """
+    Lookup volume description
+    IN: cost_center, volume_df
+    OUT: string description
+
+    SOURCE: ProductivityStatsVolumeDescriptions_USE
+
+    RULE:
+      - missing mapping returns empty string
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -246,25 +270,27 @@ def extract_volume_description(cost_center: str, volume_df: pd.DataFrame) -> str
 
 
 # =============================================================================
-# Step 6: GenOperationalStats (dummy)
+# GenOperationalStats
 # =============================================================================
-'''
-def gen_operational_stats() -> Dict[str, str]:
-    return {
-        "bud_pp_vol_ytd": "0",
-        "act_pp_vol_ytd": "0",
-        "curr_pp_bud_vol": "0",
-        "bud_pp_paid_fte": "0",
-        "act_pp_paid_fte": "0",
-        "index_ytd": "0",
-        "volume_description": "DUMMY",
-        "budget_salaries": "0",
-        "actual_salaries": "0",
-        "turnover_12mo": "0",
-    }
-    '''
+
 
 def gen_operational_stats(cost_center, pay_period, agg_df):
+    
+    """
+    Compute operational metrics
+    IN: cost_center, pay_period, aggregated dataset
+    OUT: dict:
+      - bud_pp_vol_ytd
+      - act_pp_vol_ytd
+      - curr_pp_bud_vol
+
+    GUARANTEE:
+      - current PP row must exist
+      - YTD >= current PP
+
+    FAIL: RuntimeError
+    """
+
 
     cost_center = _normalize_cost_center(cost_center)
 
@@ -299,6 +325,15 @@ def gen_operational_stats(cost_center, pay_period, agg_df):
     }
 
 def return_bud_pp_ftes(cost_center, pay_period, agg_df):
+    
+    """
+    Fetch budget FTE for current PP
+    IN: cost_center, pay_period, agg_df
+    OUT: numeric value
+
+    FAIL: RuntimeError if missing row
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -319,6 +354,15 @@ def return_bud_pp_ftes(cost_center, pay_period, agg_df):
 
 
 def return_act_pp_ftes(cost_center, pay_period, agg_df):
+    
+    """
+    Fetch actual FTE for current PP
+    IN: cost_center, pay_period, agg_df
+    OUT: numeric value
+
+    FAIL: RuntimeError if missing row
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -338,6 +382,21 @@ def return_act_pp_ftes(cost_center, pay_period, agg_df):
     return curr_rows.iloc[0][COL_ACTUAL_FTE]
 
 def compute_salary_metrics(cost_center, salaries_df):
+    
+    """
+    Compute YTD salary metrics
+    IN: cost_center, salaries_df
+    OUT: (budget, actual)
+
+    SOURCE: ProdTrackerSalaries_PRC
+
+    LOGIC:
+      - FLEX = budget
+      - ACTUAL = actual
+      - filter <= previous month
+
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -395,6 +454,19 @@ def compute_salary_metrics(cost_center, salaries_df):
     return budget, actual
 
 def compute_current_pp_ot_pct(cost_center, pay_period, prod_df):
+    
+    """
+    Compute OT percentage
+    IN: cost_center, pay_period, prod_df
+    OUT: formatted percent string
+
+    FORMULA:
+      OT% = Paid Hours / Worked Hours
+
+    FALLBACK:
+      - zero denominator → "0%"
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -427,6 +499,16 @@ def compute_current_pp_ot_pct(cost_center, pay_period, prod_df):
 
 
 def compute_current_pp_act_vol(cost_center, pay_period, agg_df):
+    
+    """
+    Fetch current PP actual volume
+    IN: cost_center, pay_period, agg_df
+    OUT: numeric value
+
+    FALLBACK:
+      - missing row → 0
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -442,6 +524,19 @@ def compute_current_pp_act_vol(cost_center, pay_period, agg_df):
 
 
 def compute_roll4_metrics(cost_center, pay_period, agg_df):
+    
+    """
+    Rolling 4 PP aggregation
+    IN: cost_center, pay_period, agg_df
+    OUT: (worked_fte, paid_fte, volume)
+
+    WINDOW:
+      last 4 pay periods including current
+
+    AGG:
+      sum over window
+    """
+
 
     cc = _normalize_cost_center(cost_center)
 
@@ -463,46 +558,25 @@ def compute_roll4_metrics(cost_center, pay_period, agg_df):
 
     return roll4_worked, roll4_paid, roll4_vol
 
-
-
-# =============================================================================
-# Step 7: GenProductivityStats (dummy)
-# =============================================================================
-
-def gen_productivity_stats(cost_center=None, header_month=None, prod_df=None) -> Dict[str, str]:
-    return {
-        "curr_pp_worked_fte": "0",
-        "curr_pp_paid_fte": "0",
-        "curr_pp_ot_pct": "0%",
-        "curr_pp_act_vol": "0",
-        "curr_prod_index": "0",
-    }
-
-'''
-def gen_productivity_stats(cost_center: str, header_month: str, prod_df: pd.DataFrame) -> Dict[str, str]:
-    rows = prod_df[
-        (prod_df["Cost Center"] == str(cost_center)) &
-        (prod_df["Month Number Desc"].str.upper() == header_month.split()[0].upper())
-    ]
-
-    worked_fte = rows["Worked FTE"].sum()
-    paid_fte = rows["Paid FTE"].sum()
-    ot_pct = rows["OT %"].mean()
-    act_vol = rows["Actual Volume"].sum()
-    prod_index = rows["Prod Index"].mean()
-
-    return {
-        "curr_pp_worked_fte": str(round(worked_fte, 2)),
-        "curr_pp_paid_fte": str(round(paid_fte, 2)),
-        "curr_pp_ot_pct": f"{round(ot_pct * 100, 1)}%",
-        "curr_pp_act_vol": str(round(act_vol, 2)),
-        "curr_prod_index": str(round(prod_index, 2)),
-    }
-''' 
 #========================================================
 # find last completed PP + aggregate rows w/ same Year, Cost Center and Pay Period Start Date
 #========================================================
 def get_latest_completed_pp(payperiod_df):
+
+    
+    """Determine current reporting PP
+    IN: payperiod_df
+    OUT: (pay_period, pp_start_date)
+
+    RULES:
+      - PP must have ended before today
+      - must not be stale (>20 days)
+
+    FAIL:
+      - no completed PP
+      - stale data
+    """
+
 
     df = payperiod_df.copy()
 
@@ -535,6 +609,27 @@ def get_latest_completed_pp(payperiod_df):
     return pay_period, pd.to_datetime(pp_start_date)
 
 def aggregate_prod(prod_df, target_year):
+
+    
+    """
+    Aggregate PROD dataset
+    IN: raw prod_df, target_year
+    OUT: agg_df (one row per CC + PP)
+
+    STEPS:
+      - normalize keys
+      - enforce numeric
+      - filter Year == target_year
+      - filter Year starts with PROD
+      - group by CC, PP
+
+    GUARANTEE:
+      exactly one row per (CC, PP)
+
+    FAIL:
+      duplicate rows after aggregation
+    """
+
 
     df = prod_df.copy()
 
@@ -609,6 +704,40 @@ def aggregate_prod(prod_df, target_year):
 # Build Context (NO PDF)
 # =============================================================================
 def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=None,payperiod_df=None, volume_df=None, salaries_df=None) -> PRCContext:
+    
+    """
+    Main transformation pipeline
+    IN:
+      - user input (form_fields)
+      - full dataset set
+
+    OUT:
+      PRCContext object
+
+    FLOW:
+      1. determine current PP + fiscal year
+      2. aggregate production data
+      3. validate (CC, PP) exists
+      4. compute:
+         - operational stats
+         - FTEs
+         - OT%
+         - volume
+         - roll4 metrics
+         - salary metrics
+      5. resolve facility + descriptions
+      6. build context object
+
+    GUARANTEE:
+      - all required fields populated
+      - no missing current PP data
+
+    FAIL:
+      - missing cost center
+      - missing aggregated row
+      - null computed stats
+    """
+
     disclaimer_text = set_disclaimer_text()
 
     pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
@@ -705,8 +834,6 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
     data = copy_from_data_screen(form_fields)
     fac = extract_facility_name(data["cost_center"], data["facility"], cost_centers_df=cost_centers_df)
 
-    pr = gen_productivity_stats(cost_center, header_month, prod_df)
-
     return PRCContext(
         header_month=header_month,
         pay_period=str(pay_period),
@@ -748,7 +875,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
         curr_pp_paid_fte=_round0(curr_pp_paid_fte),
         curr_pp_ot_pct=curr_pp_ot_pct,
         curr_pp_act_vol=_round0(curr_pp_act_vol),
-        curr_prod_index=pr["curr_prod_index"],        
+        curr_prod_index="",        
         roll4_worked_fte=_round0(roll4_worked),
         roll4_paid_fte=_round0(roll4_paid),
         roll4_vol=_round0(roll4_vol),
@@ -757,9 +884,28 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
 
 # =============================================================================
-# PDF builder (called only on GenPDF&Email)
+# PDF builder 
 # =============================================================================
 def build_pdf(ctx, out_dir):
+    
+    """
+    Render PDF output
+    IN: PRCContext, output directory
+    OUT: file path
+
+    ENGINE: ReportLab
+
+    STRUCTURE:
+      - header
+      - disclaimer
+      - operational tables
+      - productivity tables
+      - question blocks
+
+    GOAL:
+      fixed layout representation of ctx
+    """
+
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -1026,10 +1172,25 @@ def build_pdf(ctx, out_dir):
 
 
 # =============================================================================
-# Main entrypoint called by Flask on submit (returns dict for review page)
+# returns context for template
 # =============================================================================
 
 def process(form_fields, cost_centers_df=None, prod_df=None, payperiod_df=None, volume_df=None, salaries_df=None):
+    
+    """
+    Public processing entry
+    IN: form fields + datasets
+    OUT: ctx_dict (serializable)
+
+    FLOW:
+      - validate payperiod table
+      - build_context()
+      - convert to dict
+
+    USE:
+      review + PDF routes
+    """
+
 
     if payperiod_df is None or payperiod_df.empty:
         raise RuntimeError("PAYPERIODTABLE not loaded")
