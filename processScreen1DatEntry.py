@@ -812,7 +812,7 @@ def build_pdf(ctx, out_dir):
     # Top info table
     # ----------------------------------------------------------------------------
     t1 = Table([
-        [h_cell("Date Requested"), h_cell("Cost Center"), h_cell("Facility"), h_cell("Cost Center Name"), h_cell("Requisition(s)")],
+        [h_cell("Date Requested"), h_cell(LBL_COST_CENTER), h_cell("Facility"), h_cell("Cost Center Name"), h_cell("Requisition(s)")],
         [p_cell(ctx.date_requested), p_cell(ctx.cost_center), p_cell(ctx.facility), p_cell(ctx.cost_center_name), p_cell(ctx.requisitions)]
     ], colWidths=[1.2*inch,1.2*inch,1.2*inch,2.2*inch,2.0*inch])
 
