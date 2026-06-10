@@ -878,7 +878,7 @@ def build_pdf(ctx, out_dir):
     # ------------------------------------------------------------------
     # OPERATIONAL
     # ------------------------------------------------------------------
-    story.append(Paragraph("Operational Statistics", title))
+    story.append(Paragraph("Operational Statistics (Year Label = Fiscal)", title))
     story.append(Spacer(1, 3))
 
     t3 = Table([
@@ -913,8 +913,8 @@ def build_pdf(ctx, out_dir):
     t4 = Table([
         [
             h_cell("Volume Description"),
-            h_cell("Budget Salaries"),
-            h_cell("Actual Salaries"),
+            h_cell(f"Budget Salaries ({ctx.fiscal_year})"),
+            h_cell(f"Actual Salaries ({ctx.fiscal_year})"),
             h_cell("12 Month Turnover")
         ],
         [
