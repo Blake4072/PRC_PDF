@@ -759,12 +759,6 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 # =============================================================================
 # PDF builder (called only on GenPDF&Email)
 # =============================================================================
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-
 def build_pdf(ctx, out_dir):
 
     os.makedirs(out_dir, exist_ok=True)
@@ -786,64 +780,88 @@ def build_pdf(ctx, out_dir):
 
     styles = getSampleStyleSheet()
 
-    normal = ParagraphStyle("n", parent=styles["Normal"], fontSize=8.5, leading=10)
-    header = ParagraphStyle("h", parent=styles["Normal"], fontSize=8.5, alignment=1)
-    title = ParagraphStyle("t", parent=styles["Title"], fontSize=12, alignment=1)
-    
+    normal = ParagraphStyle("normal", parent=styles["Normal"], fontSize=8.5, leading=10)
+    header = ParagraphStyle("header", parent=styles["Normal"], alignment=1, fontSize=8.5)
+    title  = ParagraphStyle("title", parent=styles["Title"], fontSize=12, alignment=1)
+    qstyle = ParagraphStyle("q", parent=styles["Normal"], fontSize=9, leading=11)
+
     def p_cell(x):
-        return Paragraph(str(x), normal)
+        return Paragraph(str(x).replace("\n", "<br/>"), normal)
 
     def h_cell(x):
         return Paragraph(str(x), header)
 
     yellow = colors.Color(1, 0.95, 0.75)
-    gray = colors.Color(0.92, 0.92, 0.92)
+    gray   = colors.Color(0.92, 0.92, 0.92)
 
     story = []
 
-    # ✅ FIXED HEADER (no {})
+    # ✅ TITLE (fixed)
     story.append(Paragraph(
         f"Position Review Committee Business Case as of {ctx.header_month} & Pay Period {ctx.pay_period}",
         title
     ))
-    story.append(Spacer(1, 8))
+
+    story.append(Spacer(1, 6))
+
+    # ✅ DISCLAIMER (RESTORED)
+    story.append(Paragraph(
+        ctx.disclaimer_text.replace("\n", "<br/>"),
+        normal
+    ))
+
+    story.append(Spacer(1, 10))
 
     # ----------------------------------------------------------------------------
-    # Top info table
+    # TOP TABLE
     # ----------------------------------------------------------------------------
     t1 = Table([
-        [h_cell("Date Requested"), h_cell(LBL_COST_CENTER), h_cell("Facility"), h_cell("Cost Center Name"), h_cell("Requisition(s)")],
-        [p_cell(ctx.date_requested), p_cell(ctx.cost_center), p_cell(ctx.facility), p_cell(ctx.cost_center_name), p_cell(ctx.requisitions)]
-    ], colWidths=[1.2*inch,1.2*inch,1.2*inch,2.2*inch,2.0*inch])
+        [
+            h_cell(LBL_DATE_REQUESTED),
+            h_cell(LBL_COST_CENTER),
+            h_cell(LBL_FACILITY),
+            h_cell(LBL_COST_CENTER_NAME),
+            h_cell(LBL_REQUISITIONS)
+        ],
+        [
+            p_cell(ctx.date_requested),
+            p_cell(ctx.cost_center),
+            p_cell(ctx.facility),
+            p_cell(ctx.cost_center_name),
+            p_cell(ctx.requisitions)
+        ]
+    ])
 
     t1.setStyle([
         ("BACKGROUND",(0,0),(-1,0),yellow),
         ("BACKGROUND",(0,1),(-1,1),gray),
         ("BOX",(0,0),(-1,-1),0.8,colors.black),
         ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
     ])
 
     story.append(t1)
-    story.append(Spacer(1,8))
+    story.append(Spacer(1, 8))
 
     # ----------------------------------------------------------------------------
-    # Operational table
+    # POSITION TABLE (RESTORED)
     # ----------------------------------------------------------------------------
     t2 = Table([
-        [h_cell(f"BUD PP Vol YTD ({ctx.fiscal_year})"),
-         h_cell(f"Act PP Vol YTD ({ctx.fiscal_year})"),
-         h_cell("Current PP Bud Vol"),
-         h_cell("Bud PP Paid FTE's"),
-         h_cell("Act PP Paid FTE's"),
-         h_cell("Index YTD")],
-
-        [p_cell(ctx.bud_pp_vol_ytd),
-         p_cell(ctx.act_pp_vol_ytd),
-         p_cell(ctx.curr_pp_bud_vol),
-         p_cell(ctx.bud_pp_paid_fte),
-         p_cell(ctx.act_pp_paid_fte),
-         p_cell(ctx.index_ytd)]
+        [
+            h_cell("Position Requested"),
+            h_cell("Position Title"),
+            h_cell("Open FTE's"),
+            h_cell("Posted FTE's"),
+            h_cell("Total Requested FTE'S"),
+            h_cell("emailtoAddress")
+        ],
+        [
+            p_cell(ctx.position_requested),
+            p_cell(ctx.position_title),
+            p_cell(ctx.open_fte),
+            p_cell(ctx.posted_fte),
+            p_cell(ctx.total_requested_fte),
+            p_cell(ctx.email_to)
+        ]
     ])
 
     t2.setStyle([
@@ -851,27 +869,33 @@ def build_pdf(ctx, out_dir):
         ("BACKGROUND",(0,1),(-1,1),gray),
         ("BOX",(0,0),(-1,-1),0.8,colors.black),
         ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
     ])
 
     story.append(t2)
-    story.append(Spacer(1,8))
+    story.append(Spacer(1, 10))
 
     # ----------------------------------------------------------------------------
-    # Productivity CURRENT row
+    # OPERATIONAL
     # ----------------------------------------------------------------------------
+    story.append(Paragraph("Operational Statistics", title))
+
     t3 = Table([
-        [h_cell("Current PP Worked FTE's"),
-         h_cell("Current PP Paid FTE's"),
-         h_cell("Current PP OT%"),
-         h_cell("Current PP Act Vol"),
-         h_cell("Current Prod Index")],
-
-        [p_cell(ctx.curr_pp_worked_fte),
-         p_cell(ctx.curr_pp_paid_fte),
-         p_cell(ctx.curr_pp_ot_pct),
-         p_cell(ctx.curr_pp_act_vol),
-         p_cell(ctx.curr_prod_index)]
+        [
+            h_cell(f"BUD PP Vol YTD ({ctx.fiscal_year})"),
+            h_cell(f"Act PP Vol YTD ({ctx.fiscal_year})"),
+            h_cell("Current PP Bud Vol"),
+            h_cell("Bud PP Paid FTE's"),
+            h_cell("Act PP Paid FTE's"),
+            h_cell("Index YTD")
+        ],
+        [
+            p_cell(ctx.bud_pp_vol_ytd),
+            p_cell(ctx.act_pp_vol_ytd),
+            p_cell(ctx.curr_pp_bud_vol),
+            p_cell(ctx.bud_pp_paid_fte),
+            p_cell(ctx.act_pp_paid_fte),
+            p_cell(ctx.index_ytd)
+        ]
     ])
 
     t3.setStyle([
@@ -882,29 +906,100 @@ def build_pdf(ctx, out_dir):
     ])
 
     story.append(t3)
-    story.append(Spacer(1,6))
+    story.append(Spacer(1, 6))
 
-    # ----------------------------------------------------------------------------
-    # ✅ NEW ROLL 4 ROW (your request)
-    # ----------------------------------------------------------------------------
     t4 = Table([
-        [h_cell("Roll 4 Worked FTE's"),
-         h_cell("Roll 4 Paid FTE's"),
-         h_cell("Vol Roll 4 PP")],
-
-        [p_cell(ctx.roll4_worked_fte),
-         p_cell(ctx.roll4_paid_fte),
-         p_cell(ctx.roll4_vol)]
+        [
+            h_cell("Volume Description"),
+            h_cell("Budget Salaries"),
+            h_cell("Actual Salaries"),
+            h_cell("12 Month Turnover")
+        ],
+        [
+            p_cell(ctx.volume_description),
+            p_cell(ctx.budget_salaries),
+            p_cell(ctx.actual_salaries),
+            p_cell(ctx.turnover_12mo)
+        ]
     ])
 
     t4.setStyle([
         ("BACKGROUND",(0,0),(-1,0),yellow),
         ("BACKGROUND",(0,1),(-1,1),gray),
-        ("BOX",(0,0),(-1,-1),0.8,colors.black),
-        ("INNERGRID",(0,0),(-1,-1),0.5,colors.black),
     ])
 
     story.append(t4)
+    story.append(Spacer(1, 10))
+
+    # ----------------------------------------------------------------------------
+    # PRODUCTIVITY
+    # ----------------------------------------------------------------------------
+    story.append(Paragraph("Productivity Statistics", title))
+
+    # ✅ current row
+    t5 = Table([
+        [
+            h_cell("Current PP Worked FTE's"),
+            h_cell("Current PP Paid FTE's"),
+            h_cell("Current PP OT%"),
+            h_cell("Current PP Act Vol"),
+            h_cell("Current Prod Index"),
+        ],
+        [
+            p_cell(ctx.curr_pp_worked_fte),
+            p_cell(ctx.curr_pp_paid_fte),
+            p_cell(ctx.curr_pp_ot_pct),
+            p_cell(ctx.curr_pp_act_vol),
+            p_cell(ctx.curr_prod_index)
+        ]
+    ])
+
+    story.append(t5)
+
+    # ✅ NEW ROLL 4 ROW (added)
+    t6 = Table([
+        [
+            h_cell("Roll 4 Worked FTE's"),
+            h_cell("Roll 4 Paid FTE's"),
+            h_cell("Vol Roll 4 PP"),
+        ],
+        [
+            p_cell(ctx.roll4_worked_fte),
+            p_cell(ctx.roll4_paid_fte),
+            p_cell(ctx.roll4_vol)
+        ]
+    ])
+
+    story.append(Spacer(1, 6))
+    story.append(t6)
+    story.append(Spacer(1, 12))
+
+    # ----------------------------------------------------------------------------
+    # QUESTIONS (RESTORED)
+    # ----------------------------------------------------------------------------
+    def q_block(n, text, answer):
+        story.append(Paragraph(f"<b>{n}. {text}</b>", qstyle))
+        story.append(Spacer(1, 2))
+
+        table = Table([
+            [p_cell(answer if answer else " ")]
+        ], colWidths=[7.5 * inch])
+
+        table.setStyle([
+            ("BOX",(0,0),(-1,-1),0.8,colors.black),
+            ("VALIGN",(0,0),(-1,-1),"TOP"),
+            ("BOTTOMPADDING",(0,0),(-1,-1),18),
+        ])
+
+        story.append(table)
+        story.append(Spacer(1, 10))
+
+    q_block(1, "If position(s) were not filled, how would the workflow change?", ctx.q1_workflow_change)
+    q_block(2, "If this is a replacement request...", ctx.q2_replacement_detail)
+    q_block(3, "What current positions...", ctx.q3_absorb_work)
+    q_block(4, "Is there a different skill set...", ctx.q4_skillset)
+    q_block(5, "Are there other roles...", ctx.q5_similar_roles)
+    q_block(6, "If a full-time position...", ctx.q6_part_time)
 
     doc.build(story)
 
