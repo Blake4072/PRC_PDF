@@ -89,17 +89,17 @@ class PRCContext:
     curr_pp_bud_vol: str
     bud_pp_paid_fte: str
     act_pp_paid_fte: str
-    index_ytd: str
+    index_ytd: str                  #
     volume_description: str
     budget_salaries: str
     actual_salaries: str
-    turnover_12mo: str
+    turnover_12mo: str                #
 
     curr_pp_worked_fte: str
     curr_pp_paid_fte: str
     curr_pp_ot_pct: str
     curr_pp_act_vol: str
-    curr_prod_index: str       
+    curr_prod_index: str                #      
     roll4_worked_fte: str
     roll4_paid_fte: str
     roll4_vol: str
@@ -107,7 +107,7 @@ class PRCContext:
 
 
 # =============================================================================
-# Normalization helper 
+# Normalization helpers
 # =============================================================================
 def _normalize_cost_center(x: str) -> str:
     s = str(x).strip()
@@ -116,6 +116,32 @@ def _normalize_cost_center(x: str) -> str:
     if s.isdigit():
         s = s.lstrip("0") or "0"
     return s.upper()
+
+def resolve_effective_pay_period(cost_center, current_pp, agg_df):
+    """Resolve PP to use for computation
+    IN: cost_center, current target PP, agg_df
+    OUT: effective PP (int)
+
+    RULE:
+      - use current_pp if exists
+      - else fallback to max available PP for that CC
+    """
+
+    cc = _normalize_cost_center(cost_center)
+
+    df = agg_df[agg_df[COL_COST_CENTER] == cc]
+
+    if df.empty:
+        raise RuntimeError(f"No data at all for CC {cost_center}")
+
+    # if current exists → use it
+    if not df[df[COL_PAY_PERIOD] == current_pp].empty:
+        return current_pp
+
+    # fallback → most recent available
+    fallback_pp = df[COL_PAY_PERIOD].max()
+
+    return int(fallback_pp)
 
 # =============================================================================
 # Rounding helper 
@@ -740,7 +766,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     disclaimer_text = set_disclaimer_text()
 
-    pay_period, pp_start_date = get_latest_completed_pp(payperiod_df)
+    current_pp, pp_start_date = get_latest_completed_pp(payperiod_df)
 
     target_year = pp_start_date.year
 
@@ -757,19 +783,14 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     cc_norm = _normalize_cost_center(cost_center)
 
-    
+    effective_pp = resolve_effective_pay_period(cost_center, current_pp, agg_df)
+
     matches = agg_df[
         (agg_df[COL_COST_CENTER] == cc_norm) &
-        (agg_df[COL_PAY_PERIOD] == pay_period)
+        (agg_df[COL_PAY_PERIOD] == effective_pp)
     ]
 
-    if matches.empty:
-        raise RuntimeError(
-            f"No aggregated data for CC {cost_center} at PP {pay_period}"
-        )
-
     curr_row = matches.iloc[0]
-
 
     curr_pp_worked_fte = curr_row[COL_WORKED_FTE]
     curr_pp_paid_fte = curr_row[COL_ACTUAL_FTE]
@@ -781,19 +802,19 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     ops = gen_operational_stats(
         cost_center=cost_center,
-        pay_period=pay_period,
+        pay_period=effective_pp,
         agg_df=agg_df
     )
 
     bud_pp_paid_fte = return_bud_pp_ftes(
         cost_center,
-        pay_period,
+        effective_pp,
         agg_df
     )
 
     act_pp_paid_fte = return_act_pp_ftes(
         cost_center,
-        pay_period,
+        effective_pp,
         agg_df
     )
 
@@ -809,19 +830,19 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     curr_pp_ot_pct = compute_current_pp_ot_pct(
         cost_center,
-        pay_period,
+        effective_pp,
         prod_df
     )
 
     curr_pp_act_vol = compute_current_pp_act_vol(
         cost_center,
-        pay_period,
+        effective_pp,
         agg_df
     )
 
     roll4_worked, roll4_paid, roll4_vol = compute_roll4_metrics(
         cost_center,
-        pay_period,
+        effective_pp,
         agg_df
     )
     
@@ -836,7 +857,7 @@ def build_context(form_fields: Dict[str, Any], cost_centers_df=None, prod_df=Non
 
     return PRCContext(
         header_month=header_month,
-        pay_period=str(pay_period),
+        pay_period=str(effective_pp),
         fiscal_year=fiscal_year,
         disclaimer_text=disclaimer_text,
 
